@@ -1,1575 +1,3036 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
-  Bot,
-  Clapperboard,
-  Coins,
+  ArrowLeft,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  Clock,
   Download,
-  Film,
-  Layers,
-  Mic,
+  Folder,
+  Globe,
+  Headphones,
+  Info,
+  KeyRound,
+  LayoutGrid,
+  List,
   Music,
   Play,
   Plus,
-  Presentation,
-  Send,
+  Sliders,
   Sparkles,
   Trash2,
   Upload,
   Volume2,
   Wand2,
-  Wrench,
+  X,
 } from 'lucide-react';
-import { useVisionStory } from '@/components/VisionStoryProvider';
+import {
+  AI_MODELS,
+  CREATOR_TOOLS,
+  PODCAST_STUDIOS,
+  PRICING_PLANS,
+  PricingPlan,
+  STOCK_AVATARS,
+} from '@/lib/catalog';
 import {
   AspectRatioOption,
-  calculateCredits,
-  estimateScriptDurationSec,
   ResolutionOption,
   StudioWorkflowType,
+  calculateCredits,
 } from '@/lib/credits';
-import { ProjectRecord, StoryboardShot } from '@/lib/db';
-import { AI_MODELS } from '@/lib/catalog';
-import { renderStudioVideo } from '@/lib/videoRenderer';
+import { StoryboardShot } from '@/lib/db';
 import { speakScript, stopSpeaking } from '@/lib/audioEngine';
+import { renderStudioVideo } from '@/lib/videoRenderer';
+import { useVisionStory } from '@/components/VisionStoryProvider';
 import { StudioToolsPanel } from './StudioToolsPanel';
+import {
+  SidebarCollapseIcon,
+  VisionStoryPrismLogo,
+  VsIconAiAgent,
+  VsIconAiVideo,
+  VsIconApi,
+  VsIconBilling,
+  VsIconFaceSwap,
+  VsIconLibrary,
+  VsIconPodcast,
+  VsIconPresentation,
+  VsIconPricing,
+  VsIconSeedance,
+  VsIconTools,
+  VsIconViralMusic,
+} from '@/components/Icons';
+
+type SidebarTabId =
+  | 'ai-video'
+  | 'ai-agent'
+  | 'viral-music'
+  | 'face-swap'
+  | 'seedance'
+  | 'podcast'
+  | 'presentation'
+  | 'ai-tools'
+  | 'library'
+  | 'pricing'
+  | 'billing'
+  | 'api';
+
+const EXAMPLE_VIDEOS = [
+  {
+    id: 'ex_1',
+    title: 'Quarterly SaaS Product Launch Keynote',
+    avatar: '/assets/avatars/aria.jpg',
+    duration: '00:42',
+    resolution: '1080p',
+    script:
+      'Welcome to our Q4 release! Today we are unveiling autonomous AI video workflows that turn a single brief into localized multi-shot campaigns.',
+  },
+  {
+    id: 'ex_2',
+    title: 'TikTok Creator UGC Skincare Hook',
+    avatar: '/assets/avatars/hannah.jpg',
+    duration: '00:24',
+    resolution: '1080p',
+    script:
+      'Stop scrolling if your team still spends three days editing short-form social ads! Watch how we spin up ten creator variations in two minutes.',
+  },
+  {
+    id: 'ex_3',
+    title: 'Global L&D Employee Onboarding Module',
+    avatar: '/assets/avatars/david.jpg',
+    duration: '01:15',
+    resolution: '2K',
+    script:
+      'Hello team! In this three-minute onboarding walkthrough, we will cover security best practices and customer communication standards.',
+  },
+  {
+    id: 'ex_4',
+    title: 'Barnaby Gold: Tech News Pet Skit',
+    avatar: '/assets/avatars/golden-podcaster.jpg',
+    duration: '00:19',
+    resolution: '720p',
+    script:
+      'Breaking news from the dog park studio: treats are officially up forty percent this quarter, and squirrels remain at large!',
+  },
+];
 
 export function StudioWorkspace() {
   const searchParams = useSearchParams();
   const {
     locale,
-    t,
+    setLocale,
     user,
     avatars,
     voices,
     projects,
+    ledger,
+    apiKeys,
+    setAuthModalOpen,
+    setSettingsModalOpen,
+    setLedgerModalOpen,
     refreshState,
     showToast,
-    setLedgerModalOpen,
   } = useVisionStory();
 
-  // Active Studio Workflow Tab
-  const [activeTab, setActiveTab] = useState<StudioWorkflowType>('ai-video');
-  const [initialSubTool, setInitialSubTool] = useState<string>('voice-clone');
+  const [activeTab, setActiveTab] = useState<SidebarTabId>(
+    () => (searchParams.get('tab') as SidebarTabId) || 'ai-video'
+  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Shared Generation Controls
+  // Active Rendered Video Player Modal / Stage
+  const [activeVideoModal, setActiveVideoModal] = useState<{
+    title: string;
+    videoUrl: string;
+    resolution: string;
+    durationSec: number;
+  } | null>(null);
+  const [videoBlobMap, setVideoBlobMap] = useState<Record<string, string>>({});
+  const [isRendering, setIsRendering] = useState(false);
+  const [renderProgress, setRenderProgress] = useState(0);
+
+  // =========================================================
+  // 1. AI VIDEO STATES (Exact u01_ai_video.png)
+  // =========================================================
   const [videoMode, setVideoMode] = useState<'presenter' | 'cinematic'>('presenter');
-  const [selectedAvatarId, setSelectedAvatarId] = useState<string>('av_aria_v4');
-  const [secondaryAvatarId, setSecondaryAvatarId] = useState<string>('av_marcus_v4');
-  const [selectedVoiceId, setSelectedVoiceId] = useState<string>('voice_alloy');
-  const [secondaryVoiceId, setSecondaryVoiceId] = useState<string>('voice_echo');
-  const [inputSubTab, setInputSubTab] = useState<'script' | 'audio' | 'music'>('script');
-
-  const [script, setScript] = useState<string>(
-    'Welcome to VisionStory! Upload a single photo, write your script in any of 88 languages, and V-Character 4.0 brings your presenter to life with natural expressions and accurate lip-sync.'
-  );
-  const [motionPrompt, setMotionPrompt] = useState<string>(
-    'Warm studio key lighting, natural hand gestures, subtle confident head nods'
-  );
-  const [speed, setSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
+  const [inputModeTab, setInputModeTab] = useState<'script' | 'audio' | 'music'>('script');
+  const [selectedAvatarId, setSelectedAvatarId] = useState<string>(STOCK_AVATARS[0].id);
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>(voices[0]?.id || 'voice_alloy');
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const [scriptText, setScriptText] = useState('');
+  const [voiceSpeed, setVoiceSpeed] = useState<'normal' | 'fast' | 'slow'>('normal');
+  const [voiceEnhance, setVoiceEnhance] = useState(true);
+  const [motionPreset, setMotionPreset] = useState<'Natural' | 'Expressive' | 'Calm'>('Natural');
+  const [avatarModel, setAvatarModel] = useState<'V-Character 4.0' | 'V-Character 5.0 Pro'>('V-Character 4.0');
+  const [greenScreen, setGreenScreen] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<AspectRatioOption>('9:16');
   const [resolution, setResolution] = useState<ResolutionOption>('720p');
-  const [greenScreen, setGreenScreen] = useState<boolean>(false);
-  const [showBillPopover, setShowBillPopover] = useState<boolean>(false);
+  const [bgMusicStyle, setBgMusicStyle] = useState<'ambient' | 'synthwave' | 'acoustic'>('ambient');
+  const [isPreviewingAudio, setIsPreviewingAudio] = useState(false);
+  const avatarUploadRef = useRef<HTMLInputElement | null>(null);
+  const audioUploadRef = useRef<HTMLInputElement | null>(null);
+  const [uploadedAudioName, setUploadedAudioName] = useState<string | null>(null);
 
-  // AI Agent Storyboard State
-  const [agentBrief, setAgentBrief] = useState<string>(
-    'Launch our SaaS AI customer support copilot that cuts ticket response time by 70%.'
-  );
-  const [agentShots, setAgentShots] = useState<StoryboardShot[]>([
-    {
-      id: 'shot_1',
-      shotNumber: 1,
-      title: 'Attention Hook',
-      script: 'Still spending hours answering repetitive support tickets manually every morning?',
-      visualPrompt: 'Close-up presenter hook in warm modern studio',
-      cameraMotion: 'Slow Dolly In',
-      durationSec: 4,
-    },
-    {
-      id: 'shot_2',
-      shotNumber: 2,
-      title: 'Solution Walkthrough',
-      script: 'Meet our AI Copilot — it resolves seventy percent of customer questions automatically in eighty-eight languages.',
-      visualPrompt: 'Medium shot with subtle product metric callout',
-      cameraMotion: 'Subtle Pan Right',
-      durationSec: 5,
-    },
-    {
-      id: 'shot_3',
-      shotNumber: 3,
-      title: 'Call to Action',
-      script: 'Start your free workspace today and ship instant answers around the clock.',
-      visualPrompt: 'Centered presenter close-up with bold CTA subtitle',
-      cameraMotion: 'Studio Locked Shot',
-      durationSec: 4,
-    },
+  // =========================================================
+  // 2. AI AGENT STATES (Exact u02_ai_agent.png)
+  // =========================================================
+  const [agentPrompt, setAgentPrompt] = useState('');
+  const [agentShots, setAgentShots] = useState<StoryboardShot[]>([]);
+  const [agentTitle, setAgentTitle] = useState('');
+  const [agentChatEdit, setAgentChatEdit] = useState('');
+  const [isPlanningAgent, setIsPlanningAgent] = useState(false);
+  const [creationsFilter, setCreationsFilter] = useState<'all' | 'draft' | 'video'>('all');
+  const [viewLayout, setViewLayout] = useState<'grid' | 'list'>('grid');
+
+  // =========================================================
+  // 3. VIRAL MUSIC STATES (Exact u03_viral_music.png)
+  // =========================================================
+  const [musicPerfMode, setMusicPerfMode] = useState<'solo' | 'duet'>('solo');
+  const [musicUrlInput, setMusicUrlInput] = useState('');
+  const [musicFileName, setMusicFileName] = useState<string | null>(null);
+  const [duetAvatarId, setDuetAvatarId] = useState<string>(STOCK_AVATARS[3].id);
+  const musicUploadRef = useRef<HTMLInputElement | null>(null);
+
+  // =========================================================
+  // 4. FACE SWAP STATES (Exact u04_face_swap.png)
+  // =========================================================
+  const [swapMediaType, setSwapMediaType] = useState<'video' | 'image'>('video');
+  const [swapControlMode, setSwapControlMode] = useState<'Face only' | 'Full body' | 'Motion control'>('Face only');
+  const [swapRes, setSwapRes] = useState<ResolutionOption>('720p');
+  const [swapTemplateIdx, setSwapTemplateIdx] = useState(0);
+  const swapUploadRef = useRef<HTMLInputElement | null>(null);
+
+  // =========================================================
+  // 5. SEEDANCE 2.5 STATES (Exact u05_seedance.png)
+  // =========================================================
+  const [seedanceSubMode, setSeedanceSubMode] = useState<'generate' | 'reference' | 'frames'>('generate');
+  const [seedancePrompt, setSeedancePrompt] = useState('');
+  const [seedanceModelId, setSeedanceModelId] = useState('v-character-5-pro');
+  const [seedanceDuration, setSeedanceDuration] = useState<number>(10);
+
+  // =========================================================
+  // 6. VIDEO PODCAST STATES (Exact u06_podcast.png)
+  // =========================================================
+  const [podcastPrompt, setPodcastPrompt] = useState('');
+  const [selectedStudioId, setSelectedStudioId] = useState(PODCAST_STUDIOS[0].id);
+  const [podcastCategory, setPodcastCategory] = useState<string>('All');
+  const [podcastDurationLabel, setPodcastDurationLabel] = useState('3 minutes');
+  const [podcastAutoTranslate, setPodcastAutoTranslate] = useState(true);
+
+  // =========================================================
+  // 7. AI PRESENTATION STATES (Exact u07_presentation.png)
+  // =========================================================
+  const [pptDurationLabel, setPptDurationLabel] = useState('3 minutes');
+  const [pptAiScript, setPptAiScript] = useState(true);
+  const [uploadedSlideName, setUploadedSlideName] = useState<string | null>(null);
+  const [slideOutline, setSlideOutline] = useState<string[]>([
+    'Slide 1: VisionStory Q4 Product Overview & Key Milestones',
+    'Slide 2: V-Character 4.0 Single-Photo Lifelike Talking Avatars',
+    'Slide 3: Global Localization Across 88 Languages & OpenAPI Scale',
   ]);
-  const [agentChatInput, setAgentChatInput] = useState<string>('');
-  const [agentChatLog, setAgentChatLog] = useState<string[]>([
-    'Agent ready: 3-shot storyboard prepared. Ask me to revise any shot, add pricing, or translate to Vietnamese!',
-  ]);
-  const [planningAgent, setPlanningAgent] = useState<boolean>(false);
+  const pptUploadRef = useRef<HTMLInputElement | null>(null);
 
-  // Viral Music State
-  const [songLink, setSongLink] = useState<string>('https://suno.com/song/crimson-neon-skyline');
-  const [musicStyle, setMusicStyle] = useState<string>('Synthwave Pop');
-  const [lyricsText, setLyricsText] = useState<string>(
-    'Under crimson studio lights we rise tonight, turning one still portrait into cinema motion.'
-  );
+  // =========================================================
+  // 8. AI TOOLS, PRICING, BILLING, API STATES
+  // =========================================================
+  const [toolsCategoryTab, setToolsCategoryTab] = useState<'all' | 'video' | 'image' | 'audio'>('all');
+  const [activeInlineSubTool, setActiveInlineSubTool] = useState<string | null>(null);
+  const [studioPricingCycle, setStudioPricingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [billingSubTab, setBillingSubTab] = useState<'history' | 'usage'>('history');
+  const [newApiKeyName, setNewApiKeyName] = useState('Studio Production Key');
+  const [freshRawApiKey, setFreshRawApiKey] = useState<string | null>(null);
 
-  // Face Swap State
-  const [faceSwapTargetImg, setFaceSwapTargetImg] = useState<string>('/assets/showcase/music-singer.jpg');
+  const qTabParam = searchParams.get('tab') as SidebarTabId | null;
+  const qToolParam = searchParams.get('tool');
+  const qAvatarParam = searchParams.get('avatar');
+  const qPromptParam = searchParams.get('prompt');
+  const qModelParam = searchParams.get('model');
 
-  // Seedance 2.5 / Video Models State
-  const [selectedVideoModel, setSelectedVideoModel] = useState<string>('seedance-2.5');
-  const [seedanceSubMode, setSeedanceSubMode] = useState<string>('Text To Video');
-  const [seedanceDuration, setSeedanceDuration] = useState<number>(8);
-  const [seedancePrompt, setSeedancePrompt] = useState<string>(
-    'Sleek matte-silver electric sports coupe gliding through rain-lit Tokyo neon streets at dusk, anamorphic lens flare'
-  );
-
-  // Video Podcast State
-  const [podcastLines, setPodcastLines] = useState<Array<{ host: 'A' | 'B'; text: string }>>([
-    { host: 'A', text: 'Welcome back to Deep Dive! Today we are testing how single-photo AI hosts transform audio podcasts.' },
-    { host: 'B', text: 'What impressed me most is NotebookLM audio support — upload an MP3 and both speakers animate automatically.' },
-    { host: 'A', text: 'Exactly, and creators can publish vertical clips for Reels and full 16:9 episodes for YouTube in minutes.' },
-  ]);
-
-  // AI Presentation State
-  const [slides, setSlides] = useState<StoryboardShot[]>([
-    {
-      id: 'slide_1',
-      shotNumber: 1,
-      title: 'Q4 Global Product Expansion',
-      visualPrompt: 'Revenue grew 142% YoY across 18 localized markets using automated video onboarding.',
-      script: 'Welcome team! Let us review our fourth-quarter global expansion highlights.',
-      cameraMotion: 'Slide 01',
-      durationSec: 5,
-    },
-    {
-      id: 'slide_2',
-      shotNumber: 2,
-      title: 'Automated L&D & Customer Onboarding',
-      visualPrompt: 'Converted 45 static training decks into presenter-led video modules in 88 languages.',
-      script: 'By turning static decks into AI-hosted videos, onboarding completion jumped to ninety-two percent.',
-      cameraMotion: 'Slide 02',
-      durationSec: 5,
-    },
-  ]);
-
-  // Rendering & Active Player State
-  const [isRendering, setIsRendering] = useState<boolean>(false);
-  const [renderProgress, setRenderProgress] = useState<number>(0);
-  const [activeProject, setActiveProject] = useState<ProjectRecord | null>(null);
-  const [renderedVideoUrls, setRenderedVideoUrls] = useState<Record<string, string>>({});
-
-  // Sync URL query parameters on load
+  // Sync URL query params (?tab=..., ?tool=..., ?avatar=..., ?prompt=..., ?model=...)
   useEffect(() => {
-    const tabParam = searchParams.get('tab') as StudioWorkflowType | null;
-    if (
-      tabParam &&
-      ['ai-video', 'ai-agent', 'viral-music', 'face-swap', 'seedance', 'podcast', 'presentation', 'ai-tools'].includes(tabParam)
-    ) {
-      setActiveTab(tabParam);
-    }
-    const avatarParam = searchParams.get('avatar');
-    if (avatarParam) setSelectedAvatarId(avatarParam);
-    const voiceParam = searchParams.get('voice');
-    if (voiceParam) setSelectedVoiceId(voiceParam);
-    const promptParam = searchParams.get('prompt');
-    if (promptParam) {
-      setScript(promptParam);
-      setSeedancePrompt(promptParam);
-      setAgentBrief(promptParam);
-    }
-    const modelParam = searchParams.get('model');
-    if (modelParam) setSelectedVideoModel(modelParam);
-    const gsParam = searchParams.get('greenscreen');
-    if (gsParam === '1') setGreenScreen(true);
-    const toolParam = searchParams.get('tool');
-    if (toolParam) setInitialSubTool(toolParam);
-  }, [searchParams]);
+    const params =
+      typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const resolvedTab = (qTabParam || params?.get('tab')) as SidebarTabId | null;
+    const resolvedTool = qToolParam || params?.get('tool');
+    const resolvedAvatar = qAvatarParam || params?.get('avatar');
+    const resolvedPrompt = qPromptParam || params?.get('prompt');
+    const resolvedModel = qModelParam || params?.get('model');
 
-  useEffect(() => {
-    if (!activeProject && projects.length > 0) {
-      setActiveProject(projects[0]);
+    if (resolvedTab) setActiveTab(resolvedTab);
+    if (resolvedTool) {
+      setActiveTab('ai-tools');
+      setActiveInlineSubTool(resolvedTool);
     }
-  }, [projects, activeProject]);
+    if (resolvedAvatar) setSelectedAvatarId(resolvedAvatar);
+    if (resolvedPrompt) setAgentPrompt(resolvedPrompt);
+    if (resolvedModel) setSeedanceModelId(resolvedModel);
+  }, [qTabParam, qToolParam, qAvatarParam, qPromptParam, qModelParam]);
 
-  const activeAvatar = useMemo(
-    () => avatars.find((a) => a.id === selectedAvatarId) || avatars[0],
+  const selectedAvatar = useMemo(
+    () => avatars.find((a) => a.id === selectedAvatarId) || avatars[0] || STOCK_AVATARS[0],
     [avatars, selectedAvatarId]
   );
 
-  const secondaryAvatar = useMemo(
-    () => avatars.find((a) => a.id === secondaryAvatarId) || avatars[1] || avatars[0],
-    [avatars, secondaryAvatarId]
-  );
-
-  const activeVoice = useMemo(
+  const selectedVoice = useMemo(
     () => voices.find((v) => v.id === selectedVoiceId) || voices[0],
     [voices, selectedVoiceId]
   );
 
-  // Live Estimated Duration & Credit Bill
-  const effectiveScript = useMemo(() => {
-    if (activeTab === 'ai-agent') return agentShots.map((s) => s.script).join(' ');
-    if (activeTab === 'viral-music') return lyricsText;
-    if (activeTab === 'podcast') return podcastLines.map((l) => l.text).join(' ');
-    if (activeTab === 'presentation') return slides.map((s) => s.script).join(' ');
-    if (activeTab === 'seedance') return seedancePrompt;
-    return script;
-  }, [activeTab, agentShots, lyricsText, podcastLines, slides, seedancePrompt, script]);
+  const selectedPodcastStudio = useMemo(
+    () => PODCAST_STUDIOS.find((s) => s.id === selectedStudioId) || PODCAST_STUDIOS[0],
+    [selectedStudioId]
+  );
 
-  const estimatedDurationSec = useMemo(() => {
-    if (activeTab === 'seedance') return seedanceDuration;
-    if (activeTab === 'face-swap') return 8;
-    if (activeTab === 'ai-agent') {
-      return agentShots.reduce((acc, s) => acc + (s.durationSec || 4), 0);
-    }
-    if (activeTab === 'presentation') {
-      return slides.reduce((acc, s) => acc + (s.durationSec || 5), 0);
-    }
-    return estimateScriptDurationSec(effectiveScript, speed);
-  }, [activeTab, seedanceDuration, agentShots, slides, effectiveScript, speed]);
+  const estimatedSec = useMemo(() => {
+    const words = (scriptText.trim() || 'Welcome to VisionStory Studio').split(/\s+/).length;
+    return Math.max(6, Math.min(24, Math.ceil(words / 2.3)));
+  }, [scriptText]);
 
-  const creditBill = useMemo(
+  const creditQuote = useMemo(
     () =>
       calculateCredits({
-        workflow: activeTab,
-        durationSec: estimatedDurationSec,
+        durationSec: estimatedSec,
         resolution,
         greenScreen,
         cinematicMode: videoMode === 'cinematic',
-        modelId: selectedVideoModel,
-        slidesCount: slides.length,
+        workflow: 'ai-video',
       }),
-    [activeTab, estimatedDurationSec, resolution, greenScreen, videoMode, selectedVideoModel, slides.length]
+    [estimatedSec, resolution, greenScreen, videoMode]
   );
 
-  // Custom Avatar Photo Upload Handler
-  const handleCustomPhotoUpload = (file: File) => {
+  // Upload Custom Avatar Portrait
+  const handleAvatarFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = async () => {
-      if (typeof reader.result !== 'string') return;
+      const dataUrl = String(reader.result);
       const res = await fetch('/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'add_custom_avatar',
-          name: file.name.replace(/\.[^.]+$/, '').slice(0, 22) || 'Uploaded Portrait',
-          image: reader.result,
+          name: file.name.replace(/\.[^.]+$/, '').slice(0, 18) || 'Custom Portrait',
+          image: dataUrl,
+          defaultVoiceId: selectedVoiceId,
         }),
       });
       if (res.ok) {
         const data = await res.json();
         await refreshState();
-        setSelectedAvatarId(data.avatar.id);
-        showToast('Uploaded custom portrait and selected for talking video!');
+        if (data.avatar?.id) setSelectedAvatarId(data.avatar.id);
+        showToast('Uploaded custom avatar portrait!');
       }
     };
     reader.readAsDataURL(file);
   };
 
-  // AI Video Agent Plan & Chat Revision Handlers
-  const handlePlanAgentStoryboard = async () => {
-    setPlanningAgent(true);
+  // Preview Audio via Web Speech TTS
+  const handlePreviewAudio = () => {
+    if (isPreviewingAudio) {
+      stopSpeaking();
+      setIsPreviewingAudio(false);
+      return;
+    }
+    const sample =
+      scriptText.trim() ||
+      selectedVoice?.sampleText ||
+      'Hello! Type any script and click Generate to create your lifelike VisionStory talking video.';
+    setIsPreviewingAudio(true);
+    speakScript({
+      text: sample,
+      voice: selectedVoice,
+      speed: voiceSpeed,
+      onEnd: () => setIsPreviewingAudio(false),
+    });
+  };
+
+  // Universal Real Canvas + WebM Video Synthesis Runner
+  const executeStudioRender = async (params: {
+    workflow: StudioWorkflowType;
+    title: string;
+    script: string;
+    avatarImg: string;
+    secondaryImg?: string;
+    aspect: AspectRatioOption;
+    res: ResolutionOption;
+    green?: boolean;
+    cinematic?: boolean;
+    durationSec: number;
+    shots?: StoryboardShot[];
+    music?: string;
+  }) => {
+    if (isRendering) return;
+    setIsRendering(true);
+    setRenderProgress(5);
+
+    try {
+      // Trigger synchronized speech preview during render
+      speakScript({
+        text: params.script.slice(0, 220),
+        voice: selectedVoice,
+        speed: voiceSpeed,
+      });
+
+      const rendered = await renderStudioVideo({
+        workflow: params.workflow,
+        title: params.title,
+        script: params.script,
+        avatarImage: params.avatarImg,
+        secondaryAvatarImage: params.secondaryImg,
+        aspectRatio: params.aspect,
+        resolution: params.res,
+        greenScreen: params.green,
+        cinematic: params.cinematic,
+        durationSec: params.durationSec,
+        shots: params.shots,
+        musicStyle: params.music || bgMusicStyle,
+        watermark: user.plan === 'free',
+        onProgress: (pct) => setRenderProgress(pct),
+      });
+
+      const quote = calculateCredits({
+        durationSec: params.durationSec,
+        resolution: params.res,
+        greenScreen: params.green,
+        cinematicMode: params.cinematic,
+        workflow: params.workflow,
+      });
+
+      // Persist project + deduct/log credits
+      const saveRes = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: params.title,
+          workflow: params.workflow,
+          mode: params.cinematic ? 'cinematic' : 'presenter',
+          modelId: avatarModel,
+          avatarId: selectedAvatar.id,
+          secondaryAvatarId: params.secondaryImg ? duetAvatarId : undefined,
+          avatarImage: params.avatarImg,
+          secondaryAvatarImage: params.secondaryImg,
+          voiceId: selectedVoice?.id || 'voice_alloy',
+          script: params.script,
+          aspectRatio: params.aspect,
+          resolution: params.res,
+          greenScreen: Boolean(params.green),
+          durationSec: rendered.durationSec,
+          creditsUsed: quote.totalCredits,
+          shots: params.shots,
+        }),
+      });
+
+      if (saveRes.ok) {
+        const saved = await saveRes.json();
+        if (saved.project?.id) {
+          setVideoBlobMap((prev) => ({ ...prev, [saved.project.id]: rendered.videoUrl }));
+        }
+      }
+
+      await refreshState();
+      setActiveVideoModal({
+        title: params.title,
+        videoUrl: rendered.videoUrl,
+        resolution: params.res,
+        durationSec: rendered.durationSec,
+      });
+      showToast(`Video rendered (${params.res}) & saved to Library!`);
+    } catch (err) {
+      console.error(err);
+      showToast('Render failed — please try again.');
+    } finally {
+      setIsRendering(false);
+      setRenderProgress(0);
+    }
+  };
+
+  // AI Agent Multi-Shot Planner
+  const handleRunAgentPlanner = async (revisionInstruction?: string) => {
+    const promptToUse =
+      agentPrompt.trim() ||
+      'Launch a modern SaaS AI workspace video highlighting speed, lifelike avatars, and global teams';
+    setIsPlanningAgent(true);
     try {
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: agentBrief, locale }),
+        body: JSON.stringify(
+          revisionInstruction
+            ? {
+                mode: 'revise',
+                shots: agentShots,
+                instruction: revisionInstruction,
+                locale,
+              }
+            : {
+                prompt: promptToUse,
+                locale,
+              }
+        ),
       });
       if (res.ok) {
         const data = await res.json();
-        setAgentShots(data.shots);
-        setAgentChatLog((prev) => [
-          ...prev,
-          `Planned ${data.shots.length}-shot storyboard (${data.provider}): "${data.title}"`,
-        ]);
+        setAgentShots(data.shots || []);
+        if (data.title) setAgentTitle(data.title);
+        if (revisionInstruction) setAgentChatEdit('');
+        showToast(revisionInstruction ? 'Updated storyboard shots!' : 'AI Agent planned multi-shot storyboard!');
       }
     } finally {
-      setPlanningAgent(false);
+      setIsPlanningAgent(false);
     }
   };
 
-  const handleReviseAgentStoryboard = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!agentChatInput.trim()) return;
-    const instruction = agentChatInput.trim();
-    setAgentChatInput('');
-    setAgentChatLog((prev) => [...prev, `You: ${instruction}`]);
-
-    const res = await fetch('/api/agent', {
+  const handlePlanUpgrade = async (plan: PricingPlan) => {
+    const res = await fetch('/api/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        mode: 'revise',
-        instruction,
-        shots: agentShots,
-        locale,
+        action: 'upgrade_plan',
+        planId: plan.id,
+        billingCycle: studioPricingCycle,
       }),
     });
     if (res.ok) {
-      const data = await res.json();
-      setAgentShots(data.shots);
-      setAgentChatLog((prev) => [...prev, `Agent: ${data.reply}`]);
-    }
-  };
-
-  // Core Video Render + Credit Settlement Handler
-  const handleGenerateVideo = async () => {
-    if (isRendering) return;
-    setIsRendering(true);
-    setRenderProgress(4);
-
-    try {
-      const activeShots =
-        activeTab === 'ai-agent'
-          ? agentShots
-          : activeTab === 'presentation'
-          ? slides
-          : undefined;
-
-      const primaryVisual =
-        activeTab === 'seedance'
-          ? AI_MODELS.find((m) => m.apiId === selectedVideoModel)?.showcaseImage ||
-            '/assets/showcase/seedance-cinema.jpg'
-          : activeTab === 'face-swap'
-          ? faceSwapTargetImg
-          : activeAvatar?.image || '/assets/avatars/aria.jpg';
-
-      const secondaryVisual =
-        activeTab === 'podcast'
-          ? secondaryAvatar?.image
-          : activeTab === 'face-swap'
-          ? activeAvatar?.image
-          : undefined;
-
-      // 1. Create & bill project via backend API
-      const createRes = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workflow: activeTab,
-          mode: videoMode,
-          modelId: activeTab === 'seedance' ? selectedVideoModel : 'vs_character_v4',
-          avatarId: activeAvatar?.id,
-          secondaryAvatarId: secondaryAvatar?.id,
-          avatarImage: primaryVisual,
-          secondaryAvatarImage: secondaryVisual,
-          voiceId: selectedVoiceId,
-          secondaryVoiceId,
-          script: effectiveScript,
-          motionPrompt,
-          resolution,
-          aspectRatio: activeTab === 'presentation' || activeTab === 'podcast' ? '16:9' : aspectRatio,
-          greenScreen,
-          speed,
-          durationSec: estimatedDurationSec || 8,
-          shots: activeShots,
-          musicStyle,
-        }),
-      });
-
-      const createData = await createRes.json();
-      if (!createRes.ok) {
-        showToast(createData.error || 'Unable to start generation');
-        setIsRendering(false);
-        return;
-      }
-
-      // 2. Render real WebM video on Canvas with stereo audio & synchronized captions
-      const rendered = await renderStudioVideo({
-        workflow: activeTab,
-        title: createData.project.title,
-        script: effectiveScript,
-        avatarImage: primaryVisual,
-        secondaryAvatarImage: secondaryVisual,
-        aspectRatio: createData.project.aspectRatio,
-        resolution,
-        greenScreen,
-        cinematic: videoMode === 'cinematic',
-        durationSec: createData.project.durationSec,
-        shots: activeShots,
-        musicStyle,
-        watermark: user.plan === 'free',
-        onProgress: (pct) => setRenderProgress(pct),
-      });
-
-      setRenderedVideoUrls((prev) => ({
-        ...prev,
-        [createData.project.id]: rendered.videoUrl,
-      }));
-      setActiveProject(createData.project);
       await refreshState();
-
-      // Speak voiceover preview automatically for presenter workflows
-      if (['ai-video', 'ai-agent', 'podcast', 'presentation'].includes(activeTab)) {
-        speakScript({
-          text: effectiveScript.slice(0, 260),
-          voice: activeVoice,
-          speed,
-        });
-      }
-
-      showToast(
-        locale === 'vi'
-          ? `Đã dựng xong video (${resolution})! Bạn có thể phát và tải file .webm ngay bên phải.`
-          : `Video rendered (${resolution})! Play with AI voice or download .webm in the player.`
-      );
-    } catch (err) {
-      console.error(err);
-      showToast('Video rendering encountered an error — please try again.');
-    } finally {
-      setIsRendering(false);
-      setRenderProgress(0);
+      showToast(`Subscribed to ${plan.name}! Credits added to balance.`);
     }
   };
 
-  const handleRenderExistingProject = async (proj: ProjectRecord) => {
-    setActiveProject(proj);
-    if (renderedVideoUrls[proj.id]) return;
-    setIsRendering(true);
-    try {
-      const rendered = await renderStudioVideo({
-        workflow: proj.workflow,
-        title: proj.title,
-        script: proj.script,
-        avatarImage: proj.avatarImage,
-        secondaryAvatarImage: proj.secondaryAvatarImage,
-        aspectRatio: proj.aspectRatio,
-        resolution: proj.resolution,
-        greenScreen: proj.greenScreen,
-        cinematic: proj.mode === 'cinematic',
-        durationSec: proj.durationSec,
-        shots: proj.shots,
-        watermark: user.plan === 'free',
-        onProgress: (pct) => setRenderProgress(pct),
-      });
-      setRenderedVideoUrls((prev) => ({ ...prev, [proj.id]: rendered.videoUrl }));
-    } finally {
-      setIsRendering(false);
-      setRenderProgress(0);
-    }
-  };
-
-  const handleDeleteProject = async (projectId: string) => {
-    stopSpeaking();
-    await fetch('/api/state', {
+  const handleCreateStudioApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await fetch('/api/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete_project', projectId }),
+      body: JSON.stringify({ action: 'create_api_key', name: newApiKeyName }),
     });
-    await refreshState();
-    if (activeProject?.id === projectId) {
-      setActiveProject(projects.find((p) => p.id !== projectId) || null);
+    if (res.ok) {
+      const data = await res.json();
+      setFreshRawApiKey(data.rawKey);
+      await refreshState();
+      showToast('Generated new VisionStory API key!');
     }
   };
 
-  const SIDEBAR_TABS: Array<{ id: StudioWorkflowType; icon: React.ReactNode; label: string }> = [
-    { id: 'ai-video', icon: <Clapperboard size={17} />, label: t.studio.tabs['ai-video'] },
-    { id: 'ai-agent', icon: <Bot size={17} />, label: t.studio.tabs['ai-agent'] },
-    { id: 'viral-music', icon: <Music size={17} />, label: t.studio.tabs['viral-music'] },
-    { id: 'face-swap', icon: <Wand2 size={17} />, label: t.studio.tabs['face-swap'] },
-    { id: 'seedance', icon: <Film size={17} />, label: t.studio.tabs.seedance },
-    { id: 'podcast', icon: <Mic size={17} />, label: t.studio.tabs.podcast },
-    { id: 'presentation', icon: <Presentation size={17} />, label: t.studio.tabs.presentation },
-    { id: 'ai-tools', icon: <Wrench size={17} />, label: t.studio.tabs['ai-tools'] },
+  const MAIN_NAV_ITEMS: { id: SidebarTabId; label: string; icon: React.ReactNode; badge?: string }[] = [
+    { id: 'ai-video', label: 'AI Video', icon: <VsIconAiVideo /> },
+    { id: 'ai-agent', label: 'AI Agent', icon: <VsIconAiAgent /> },
+    { id: 'viral-music', label: 'Viral Music', icon: <VsIconViralMusic />, badge: 'Duet' },
+    { id: 'face-swap', label: 'Face Swap', icon: <VsIconFaceSwap /> },
+    { id: 'seedance', label: 'Seedance 2.5', icon: <VsIconSeedance /> },
+    { id: 'podcast', label: 'Video Podcast', icon: <VsIconPodcast /> },
+    { id: 'presentation', label: 'AI Presentation', icon: <VsIconPresentation /> },
+    { id: 'ai-tools', label: 'AI Tools', icon: <VsIconTools /> },
+  ];
+
+  const BOTTOM_NAV_ITEMS: { id: SidebarTabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'library', label: 'Library', icon: <VsIconLibrary /> },
+    { id: 'pricing', label: 'Pricing', icon: <VsIconPricing /> },
+    { id: 'billing', label: 'Billing', icon: <VsIconBilling /> },
+    { id: 'api', label: 'API', icon: <VsIconApi /> },
   ];
 
   return (
-    <div className="vs-studio-shell">
-      {/* LEFT NAVIGATION SIDEBAR */}
-      <aside className="vs-studio-sidebar" aria-label="Studio workflows">
-        {SIDEBAR_TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            id={`studio-tab-${item.id}`}
-            onClick={() => setActiveTab(item.id)}
-            className={`vs-studio-tab-btn ${activeTab === item.id ? 'active' : ''}`}
+    <div className="vs-studio-app">
+      {/* =========================================================
+          DETACHED FLOATING LEFT SIDEBAR (Exact 1:1 u01_ai_video.png)
+          ========================================================= */}
+      <aside className={`vs-studio-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <div>
+          {/* Logo Header + Collapse Toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+              padding: '4px 6px 18px',
+            }}
           >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
+            <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+              <VisionStoryPrismLogo size={34} boxed />
+              {!sidebarCollapsed && (
+                <span style={{ fontWeight: 800, fontSize: '0.98rem', letterSpacing: '-0.02em' }}>
+                  VisionStory
+                </span>
+              )}
+            </Link>
+            {!sidebarCollapsed && (
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(true)}
+                title="Collapse sidebar"
+                style={{ padding: 4 }}
+              >
+                <SidebarCollapseIcon />
+              </button>
+            )}
+          </div>
 
-        <div
-          style={{
-            marginTop: 'auto',
-            padding: 12,
-            borderRadius: 12,
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-hairline)',
-          }}
-        >
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Active Plan</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
-            <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.86rem' }}>
-              {user.plan}
-            </span>
+          {sidebarCollapsed && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+              <button type="button" onClick={() => setSidebarCollapsed(false)} title="Expand sidebar">
+                <SidebarCollapseIcon />
+              </button>
+            </div>
+          )}
+
+          {/* Primary 8 Workflows */}
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {MAIN_NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`vs-sidebar-nav-btn ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  if (item.id === 'ai-tools') setActiveInlineSubTool(null);
+                }}
+                title={item.label}
+              >
+                <span style={{ flexShrink: 0, display: 'inline-flex' }}>{item.icon}</span>
+                {!sidebarCollapsed && (
+                  <>
+                    <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
+                    {item.badge && <span className="vs-tag-duet">{item.badge}</span>}
+                  </>
+                )}
+              </button>
+            ))}
+          </nav>
+
+          {/* Hairline Divider */}
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '14px 8px' }} />
+
+          {/* Secondary 4 Workspace Links */}
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {BOTTOM_NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`vs-sidebar-nav-btn ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(item.id)}
+                title={item.label}
+              >
+                <span style={{ flexShrink: 0, display: 'inline-flex' }}>{item.icon}</span>
+                {!sidebarCollapsed && <span style={{ flex: 1 }}>{item.label}</span>}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {!sidebarCollapsed && (
+          <div style={{ padding: '8px 10px 2px', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
             <button
               type="button"
               onClick={() => setLedgerModalOpen(true)}
-              style={{ fontSize: '0.78rem', color: 'var(--accent-teal)', fontWeight: 650 }}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                color: 'rgba(255,255,255,0.82)',
+                fontWeight: 600,
+              }}
             >
-              {user.credits} cr →
+              <span>Credits</span>
+              <span style={{ color: '#a59eff' }}>{user.credits} cr</span>
             </button>
           </div>
-        </div>
+        )}
       </aside>
 
-      {/* CENTER WORKSPACE */}
-      <section className="vs-studio-main">
-        {activeTab === 'ai-tools' ? (
-          <StudioToolsPanel
-            initialSubTool={initialSubTool}
-            onAvatarCreated={(newId) => {
-              setSelectedAvatarId(newId);
-              setActiveTab('ai-video');
-            }}
-          />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 820 }}>
-            {/* WORKFLOW 1: AI TALKING VIDEO */}
-            {activeTab === 'ai-video' && (
-              <>
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                  <div className="vs-segmented">
-                    <button
-                      type="button"
-                      className={`vs-segmented-btn ${videoMode === 'presenter' ? 'active' : ''}`}
-                      onClick={() => setVideoMode('presenter')}
-                    >
-                      {t.studio.presenter} (V-Character 4.0)
-                    </button>
-                    <button
-                      type="button"
-                      className={`vs-segmented-btn ${videoMode === 'cinematic' ? 'active' : ''}`}
-                      onClick={() => setVideoMode('cinematic')}
-                    >
-                      {t.studio.cinematic} (V-Character 5.0 Pro)
-                    </button>
-                  </div>
+      {/* =========================================================
+          MAIN CENTERED STUDIO STAGE
+          ========================================================= */}
+      <div className="vs-studio-main">
+        {/* Top-Right Floating Controls matching u01_ai_video.png: [EN/VI] [Keys] [Sign Up] [Log In] */}
+        <div className="vs-studio-topbar">
+          <button
+            type="button"
+            onClick={() => setLocale(locale === 'en' ? 'vi' : 'en')}
+            className="vs-btn-ghost"
+            style={{ fontSize: '0.78rem', padding: '5px 10px' }}
+            title="Switch Language"
+          >
+            <Globe size={14} />
+            <span>{locale === 'en' ? 'EN' : 'VI'}</span>
+          </button>
 
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <label className="vs-btn vs-btn-secondary vs-btn-sm" style={{ cursor: 'pointer' }}>
-                      <Upload size={14} /> {t.studio.uploadImage}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleCustomPhotoUpload(f);
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="vs-btn vs-btn-secondary vs-btn-sm"
-                      onClick={() => {
-                        setInitialSubTool('image-gen');
-                        setActiveTab('ai-tools');
-                      }}
-                    >
-                      <Sparkles size={14} /> {t.studio.generateImage}
-                    </button>
-                  </div>
+          <button
+            type="button"
+            onClick={() => setSettingsModalOpen(true)}
+            className="vs-btn-ghost"
+            style={{ padding: '6px 9px' }}
+            title="Configure Optional External AI Provider Keys"
+          >
+            <KeyRound size={15} />
+          </button>
+
+          {user.provider === 'demo' ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setAuthModalOpen(true)}
+                className="vs-btn vs-btn-secondary vs-btn-sm"
+                style={{ height: 34, padding: '0 16px', borderRadius: 10 }}
+              >
+                Sign Up
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthModalOpen(true)}
+                className="vs-btn vs-btn-primary vs-btn-sm"
+                style={{ height: 34, padding: '0 16px', borderRadius: 10 }}
+              >
+                Log In
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLedgerModalOpen(true)}
+              className="vs-btn vs-btn-primary vs-btn-sm"
+              style={{ height: 34, padding: '0 16px', borderRadius: 10 }}
+            >
+              {user.name} · {user.credits} cr
+            </button>
+          )}
+        </div>
+
+        {/* Live Rendering Progress Banner */}
+        {isRendering && (
+          <div
+            style={{
+              maxWidth: 760,
+              margin: '0 auto 18px',
+              padding: '12px 18px',
+              borderRadius: 14,
+              background: 'rgba(98, 93, 245, 0.16)',
+              border: '1px solid rgba(98, 93, 245, 0.45)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.86rem', fontWeight: 600 }}>
+              <Sparkles size={16} style={{ color: '#a59eff' }} />
+              <span>Synthesizing VisionStory HD WebM Video & Stereo Audio...</span>
+            </div>
+            <span style={{ fontWeight: 800, color: '#fff', fontSize: '0.86rem' }}>{renderProgress}%</span>
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 1: AI VIDEO (Exact 1:1 u01_ai_video.png)
+            ========================================================= */}
+        {activeTab === 'ai-video' && (
+          <div>
+            <h1 className="vs-studio-title">
+              {locale === 'vi' ? 'Nhân vật của bạn sẽ nói gì?' : 'What should your avatar say?'}
+            </h1>
+
+            {/* [ Presenter | Cinematic ] */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+              <div className="vs-mode-pill-group">
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${videoMode === 'presenter' ? 'active' : ''}`}
+                  onClick={() => setVideoMode('presenter')}
+                >
+                  <VsIconAiVideo />
+                  <span>Presenter</span>
+                </button>
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${videoMode === 'cinematic' ? 'active' : ''}`}
+                  onClick={() => setVideoMode('cinematic')}
+                >
+                  <Sparkles size={15} />
+                  <span>Cinematic</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2-Column Main AI Video Card */}
+            <div className="vs-aivideo-card">
+              {/* LEFT COLUMN: [Upload | Generate] + 4x3 Avatar Grid */}
+              <div>
+                <input
+                  ref={avatarUploadRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleAvatarFileUpload}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                  <button
+                    type="button"
+                    className="vs-upload-gen-btn"
+                    onClick={() => avatarUploadRef.current?.click()}
+                  >
+                    <Upload size={16} />
+                    <span>Upload</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="vs-upload-gen-btn"
+                    onClick={() => {
+                      setActiveTab('ai-tools');
+                      setActiveInlineSubTool('image-gen');
+                    }}
+                  >
+                    <Wand2 size={16} />
+                    <span>Generate</span>
+                  </button>
                 </div>
 
-                {/* Avatar Picker Grid */}
-                <div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 650, color: 'var(--text-secondary)', marginBottom: 10 }}>
-                    Select Talking Avatar ({avatars.length} Available · 1-Photo Consistent Character)
-                  </div>
-                  <div className="vs-avatar-grid">
-                    {avatars.map((av) => (
+                <div className="vs-avatar-grid-4">
+                  {avatars.map((av) => {
+                    const isSelected = av.id === selectedAvatar.id;
+                    return (
                       <button
                         key={av.id}
                         type="button"
+                        className={`vs-avatar-tile ${isSelected ? 'selected' : ''}`}
                         onClick={() => {
                           setSelectedAvatarId(av.id);
-                          setSelectedVoiceId(av.defaultVoiceId);
+                          if (av.defaultVoiceId) setSelectedVoiceId(av.defaultVoiceId);
                         }}
-                        className={`vs-avatar-tile ${selectedAvatarId === av.id ? 'selected' : ''}`}
                       >
                         <img src={av.image} alt={av.name} />
-                        <div className="vs-avatar-tile-label">{av.name}</div>
+                        <span className="vs-avatar-tile-badge">{av.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN: Script | Audio | Music + Voice Bar + Textarea + Bottom Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 420 }}>
+                <div>
+                  {/* Underline Tabs */}
+                  <div className="vs-underline-tabs" style={{ marginBottom: 14 }}>
+                    {[
+                      { id: 'script', label: 'Script' },
+                      { id: 'audio', label: 'Audio' },
+                      { id: 'music', label: 'Music' },
+                    ].map((tItem) => (
+                      <button
+                        key={tItem.id}
+                        type="button"
+                        className={`vs-underline-tab ${inputModeTab === tItem.id ? 'active' : ''}`}
+                        onClick={() => setInputModeTab(tItem.id as typeof inputModeTab)}
+                      >
+                        <span>{tItem.label}</span>
                       </button>
                     ))}
                   </div>
-                </div>
 
-                {/* Script / Audio / Music Tabs */}
-                <div className="vs-card" style={{ padding: 20 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div className="vs-segmented">
-                      {(['script', 'audio', 'music'] as const).map((st) => (
-                        <button
-                          key={st}
-                          type="button"
-                          className={`vs-segmented-btn ${inputSubTab === st ? 'active' : ''}`}
-                          onClick={() => setInputSubTab(st)}
-                        >
-                          {st === 'script'
-                            ? t.studio.scriptTab
-                            : st === 'audio'
-                            ? t.studio.audioTab
-                            : t.studio.musicTab}
-                        </button>
-                      ))}
-                    </div>
+                  {/* Voice Controls Row: [ Change Voice ] [ Clone ] [ ▶ Preview Audio   Pro ] */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, position: 'relative' }}>
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      style={{ height: 40, padding: '0 13px', gap: 9 }}
+                      onClick={() => setVoiceDropdownOpen((v) => !v)}
+                    >
+                      <span
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          background: 'rgba(45, 212, 191, 0.18)',
+                          color: '#2dd4bf',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.7rem',
+                        }}
+                      >
+                        ılı
+                      </span>
+                      <span>{selectedVoice ? `${selectedVoice.name}` : 'Change Voice'}</span>
+                      <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                    </button>
 
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      Est. {estimatedDurationSec}s
-                    </span>
+                    {voiceDropdownOpen && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 46,
+                          left: 0,
+                          width: 290,
+                          background: '#171923',
+                          border: '1px solid rgba(255,255,255,0.14)',
+                          borderRadius: 14,
+                          padding: 8,
+                          zIndex: 40,
+                          boxShadow: 'var(--shadow-elevated)',
+                        }}
+                      >
+                        {voices.map((v) => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedVoiceId(v.id);
+                              setVoiceDropdownOpen(false);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 9,
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              background: v.id === selectedVoiceId ? 'rgba(98,93,245,0.2)' : 'transparent',
+                              fontSize: '0.82rem',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 650 }}>{v.name}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{v.language}</div>
+                            </div>
+                            {v.id === selectedVoiceId && <Check size={14} style={{ color: '#a59eff' }} />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      style={{ height: 40, padding: '0 13px' }}
+                      onClick={() => {
+                        setActiveTab('ai-tools');
+                        setActiveInlineSubTool('voice-clone');
+                      }}
+                    >
+                      <Volume2 size={14} style={{ color: '#f43f5e' }} />
+                      <span>Clone</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      style={{ height: 40, flex: 1, justifyContent: 'space-between', padding: '0 14px' }}
+                      onClick={handlePreviewAudio}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <Play size={13} fill="currentColor" />
+                        <span>{isPreviewingAudio ? 'Stop Preview' : 'Preview Audio'}</span>
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#818cf8', fontWeight: 700 }}>Pro</span>
+                    </button>
                   </div>
 
-                  {inputSubTab === 'script' && (
+                  {/* Main Script / Audio / Music Content Area */}
+                  {inputModeTab === 'script' && (
                     <textarea
-                      className="vs-textarea"
-                      placeholder={t.studio.whatSay}
-                      value={script}
-                      onChange={(e) => setScript(e.target.value)}
+                      className="vs-clean-textarea"
+                      rows={7}
+                      placeholder="Type whatever you want your character to say..."
+                      value={scriptText}
+                      onChange={(e) => setScriptText(e.target.value)}
                     />
                   )}
 
-                  {inputSubTab === 'audio' && (
+                  {inputModeTab === 'audio' && (
                     <div
                       style={{
-                        padding: 22,
-                        borderRadius: 12,
-                        border: '1px dashed var(--border-strong)',
+                        border: '1px dashed rgba(255,255,255,0.14)',
+                        borderRadius: 14,
+                        padding: '36px 20px',
                         textAlign: 'center',
-                        background: 'var(--bg-elevated)',
+                        marginTop: 8,
                       }}
                     >
-                      <div style={{ fontWeight: 650, marginBottom: 4 }}>
-                        Add Audio · MP3, WAV, M4A, MP4, MOV, or WebM
+                      <input
+                        ref={audioUploadRef}
+                        type="file"
+                        accept="audio/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) {
+                            setUploadedAudioName(f.name);
+                            showToast(`Loaded voiceover audio: ${f.name}`);
+                          }
+                        }}
+                      />
+                      <div style={{ fontSize: '0.88rem', fontWeight: 600, marginBottom: 6 }}>
+                        {uploadedAudioName || 'Upload MP3, WAV, or M4A voiceover'}
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-                        Your avatar lip-syncs frame-by-frame to your uploaded or recorded voiceover
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: 14 }}>
+                        V-Character 4.0 lip-syncs directly to your recorded audio track
                       </div>
-                      <label className="vs-btn vs-btn-secondary vs-btn-sm" style={{ cursor: 'pointer' }}>
-                        <Upload size={14} /> Upload Audio Script
-                        <input
-                          type="file"
-                          accept="audio/*,video/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) {
-                              setScript(`Audio performance synced from uploaded file: ${f.name}`);
-                              showToast(`Loaded audio script: ${f.name}`);
-                            }
-                          }}
-                        />
-                      </label>
+                      <button
+                        type="button"
+                        className="vs-btn vs-btn-primary vs-btn-sm"
+                        onClick={() => audioUploadRef.current?.click()}
+                      >
+                        <Upload size={14} /> Upload Audio
+                      </button>
                     </div>
                   )}
 
-                  {inputSubTab === 'music' && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {['None (Clean Voice)', 'Warm Corporate Ambient', 'Subtle Tech Pulse', 'Upbeat Creator Lo-Fi'].map(
-                        (m) => (
+                  {inputModeTab === 'music' && (
+                    <div style={{ paddingTop: 6 }}>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
+                        Choose studio backing atmosphere embedded into your video:
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {(['ambient', 'synthwave', 'acoustic'] as const).map((mStyle) => (
                           <button
-                            key={m}
+                            key={mStyle}
                             type="button"
-                            onClick={() => setMusicStyle(m)}
-                            className={musicStyle === m ? 'vs-tag vs-tag-brand' : 'vs-tag'}
-                            style={{ padding: '7px 13px', cursor: 'pointer' }}
+                            onClick={() => setBgMusicStyle(mStyle)}
+                            className={`vs-ctrl-pill ${bgMusicStyle === mStyle ? 'active' : ''}`}
+                            style={{
+                              borderColor: bgMusicStyle === mStyle ? '#625df5' : undefined,
+                              textTransform: 'capitalize',
+                            }}
                           >
-                            {m}
+                            <Music size={13} />
+                            <span>{mStyle}</span>
                           </button>
-                        )
-                      )}
+                        ))}
+                      </div>
                     </div>
                   )}
+                </div>
 
-                  {/* Voice, Clone, Preview & Speed Bar */}
+                {/* Bottom Utility & Model Controls matching u01_ai_video.png 1:1 */}
+                <div>
+                  {/* [ ⏱ ] [ ılı Voice Enhance ] ---------- [ 👋 Motion ] */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        className="vs-ctrl-pill"
+                        onClick={() =>
+                          setVoiceSpeed((s) => (s === 'normal' ? 'fast' : s === 'fast' ? 'slow' : 'normal'))
+                        }
+                        title="Speech Speed"
+                      >
+                        <Clock size={14} />
+                        {voiceSpeed !== 'normal' && <span>{voiceSpeed}</span>}
+                      </button>
+                      <button
+                        type="button"
+                        className="vs-ctrl-pill"
+                        onClick={() => setVoiceEnhance((v) => !v)}
+                        style={voiceEnhance ? { borderColor: 'rgba(98,93,245,0.55)', color: '#fff' } : undefined}
+                      >
+                        <Sparkles size={13} style={{ color: voiceEnhance ? '#a59eff' : undefined }} />
+                        <span>Voice Enhance</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      onClick={() =>
+                        setMotionPreset((m) =>
+                          m === 'Natural' ? 'Expressive' : m === 'Expressive' ? 'Calm' : 'Natural'
+                        )
+                      }
+                    >
+                      <Wand2 size={13} />
+                      <span>Motion: {motionPreset}</span>
+                    </button>
+                  </div>
+
+                  {/* [ V-Character 4.0 ⌄ ] [ Green Screen switch ] [ 9:16 ⌄ ] [ 720p | 1080p | 2K ] */}
                   <div
                     style={{
                       display: 'flex',
                       flexWrap: 'wrap',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      marginTop: 14,
-                      paddingTop: 14,
-                      borderTop: '1px solid var(--border-hairline)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-                      <select
-                        className="vs-select"
-                        style={{ width: 'auto', padding: '7px 12px', fontSize: '0.84rem' }}
-                        value={selectedVoiceId}
-                        onChange={(e) => setSelectedVoiceId(e.target.value)}
-                      >
-                        {voices.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            🎙 {v.name} · {v.language}
-                          </option>
-                        ))}
-                      </select>
-
-                      <button
-                        type="button"
-                        className="vs-btn vs-btn-secondary vs-btn-sm"
-                        onClick={() =>
-                          speakScript({
-                            text: script || activeVoice.sampleText,
-                            voice: activeVoice,
-                            speed,
-                          })
-                        }
-                      >
-                        <Volume2 size={14} /> {t.studio.previewAudio}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="vs-btn vs-btn-secondary vs-btn-sm"
-                        onClick={() => {
-                          setInitialSubTool('voice-clone');
-                          setActiveTab('ai-tools');
-                        }}
-                      >
-                        <Mic size={14} /> {t.studio.cloneVoice}
-                      </button>
-                    </div>
-
-                    <div className="vs-segmented">
-                      {(['slow', 'normal', 'fast'] as const).map((sp) => (
-                        <button
-                          key={sp}
-                          type="button"
-                          className={`vs-segmented-btn ${speed === sp ? 'active' : ''}`}
-                          onClick={() => setSpeed(sp)}
-                        >
-                          {sp.charAt(0).toUpperCase() + sp.slice(1)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Motion Director Prompt */}
-                <div>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 650, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
-                    Motion Direction
-                  </label>
-                  <input
-                    className="vs-input"
-                    placeholder={t.studio.howPicture}
-                    value={motionPrompt}
-                    onChange={(e) => setMotionPrompt(e.target.value)}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* WORKFLOW 2: AI VIDEO AGENT */}
-            {activeTab === 'ai-agent' && (
-              <>
-                <div>
-                  <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 4 }}>
-                    AI Video Agent · Multi-Shot Storyboard Director
-                  </h2>
-                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
-                    Enter a one-line brief, product URL, or outline. The Agent plans every shot, script, and caption — then refine scenes by chatting.
-                  </p>
-                </div>
-
-                <div className="vs-card" style={{ padding: 18, display: 'flex', gap: 10 }}>
-                  <input
-                    className="vs-input"
-                    value={agentBrief}
-                    onChange={(e) => setAgentBrief(e.target.value)}
-                    placeholder="Paste a URL, product brief, or topic..."
-                  />
-                  <button
-                    type="button"
-                    className="vs-btn vs-btn-primary"
-                    disabled={planningAgent}
-                    onClick={handlePlanAgentStoryboard}
-                  >
-                    <Bot size={16} />
-                    <span>{planningAgent ? 'Planning...' : 'Plan Multi-Shot'}</span>
-                  </button>
-                </div>
-
-                {/* Editable Storyboard Shots */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {agentShots.map((shot, idx) => (
-                    <div key={shot.id} className="vs-card" style={{ padding: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-brand)' }}>
-                          SHOT 0{idx + 1} · {shot.title}
-                        </span>
-                        <span className="vs-tag">{shot.cameraMotion} · {shot.durationSec}s</span>
-                      </div>
-                      <textarea
-                        className="vs-textarea"
-                        style={{ minHeight: 62 }}
-                        value={shot.script}
-                        onChange={(e) => {
-                          const next = [...agentShots];
-                          next[idx] = { ...shot, script: e.target.value };
-                          setAgentShots(next);
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Chat to Refine Scenes */}
-                <div className="vs-card" style={{ padding: 16 }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 8 }}>
-                    Chat with Agent to Revise Shots
-                  </div>
-                  <div
-                    style={{
-                      maxHeight: 110,
-                      overflowY: 'auto',
-                      fontSize: '0.8rem',
-                      color: 'var(--text-secondary)',
-                      marginBottom: 10,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4,
-                    }}
-                  >
-                    {agentChatLog.map((line, i) => (
-                      <div key={i}>{line}</div>
-                    ))}
-                  </div>
-                  <form onSubmit={handleReviseAgentStoryboard} style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      className="vs-input"
-                      placeholder='Try: "Make hooks punchier", "Add pricing shot", or "Translate to Tiếng Việt"'
-                      value={agentChatInput}
-                      onChange={(e) => setAgentChatInput(e.target.value)}
-                    />
-                    <button type="submit" className="vs-btn vs-btn-secondary">
-                      <Send size={15} /> Revise
-                    </button>
-                  </form>
-                </div>
-              </>
-            )}
-
-            {/* WORKFLOW 3: VIRAL AI MUSIC VIDEO */}
-            {activeTab === 'viral-music' && (
-              <>
-                <div>
-                  <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 4 }}>
-                    AI Music Video Generator · One Photo + One Song
-                  </h2>
-                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
-                    Upload MP3/WAV, paste a Suno or Udio track URL, and pair with any portrait for natural singing lip-sync.
-                  </p>
-                </div>
-
-                <div className="vs-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div className="vs-grid-2">
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 650, display: 'block', marginBottom: 6 }}>
-                        Paste Suno / Udio Link or Song Title
-                      </label>
-                      <input
-                        className="vs-input"
-                        value={songLink}
-                        onChange={(e) => setSongLink(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 650, display: 'block', marginBottom: 6 }}>
-                        Backing Arrangement & Beat
-                      </label>
-                      <select
-                        className="vs-select"
-                        value={musicStyle}
-                        onChange={(e) => setMusicStyle(e.target.value)}
-                      >
-                        <option>Synthwave Pop</option>
-                        <option>Crimson R&B Studio</option>
-                        <option>Acoustic Ballad</option>
-                        <option>Festival EDM</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 650, display: 'block', marginBottom: 6 }}>
-                      Sung Chorus /Synced Lyrics
-                    </label>
-                    <textarea
-                      className="vs-textarea"
-                      style={{ minHeight: 74 }}
-                      value={lyricsText}
-                      onChange={(e) => setLyricsText(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 650, marginBottom: 8 }}>
-                      Select Singer Portrait (or Upload Your Own)
-                    </div>
-                    <div className="vs-avatar-grid">
-                      {avatars.map((av) => (
-                        <button
-                          key={av.id}
-                          type="button"
-                          onClick={() => setSelectedAvatarId(av.id)}
-                          className={`vs-avatar-tile ${selectedAvatarId === av.id ? 'selected' : ''}`}
-                        >
-                          <img src={av.image} alt={av.name} />
-                          <div className="vs-avatar-tile-label">{av.name}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* WORKFLOW 4: VIDEO & PHOTO FACE SWAP */}
-            {activeTab === 'face-swap' && (
-              <div className="vs-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>AI Video & Photo Face Swap</h2>
-                    <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-                      Frame-by-frame motion, expression, and lighting alignment · Free HD · 0 Credits
-                    </p>
-                  </div>
-                  <span className="vs-tag vs-tag-teal">FREE · 0 CREDITS</span>
-                </div>
-
-                <div className="vs-grid-2">
-                  <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 650, marginBottom: 8 }}>
-                      1. Reference Face Identity ({activeAvatar?.name})
-                    </div>
-                    <div className="vs-avatar-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                      {avatars.slice(0, 6).map((av) => (
-                        <button
-                          key={av.id}
-                          type="button"
-                          onClick={() => setSelectedAvatarId(av.id)}
-                          className={`vs-avatar-tile ${selectedAvatarId === av.id ? 'selected' : ''}`}
-                        >
-                          <img src={av.image} alt={av.name} />
-                          <div className="vs-avatar-tile-label">{av.name}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 650, marginBottom: 8 }}>
-                      2. Target Video Scene / Clip
-                    </div>
-                    <img
-                      src={faceSwapTargetImg}
-                      alt="Target scene"
-                      style={{ width: '100%', height: 170, objectFit: 'cover', borderRadius: 12, marginBottom: 10 }}
-                    />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <label className="vs-btn vs-btn-secondary vs-btn-sm" style={{ cursor: 'pointer' }}>
-                        <Upload size={14} /> Upload Target Clip/Photo
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (!f) return;
-                            const r = new FileReader();
-                            r.onload = () => {
-                              if (typeof r.result === 'string') setFaceSwapTargetImg(r.result);
-                            };
-                            r.readAsDataURL(f);
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="vs-btn vs-btn-secondary vs-btn-sm"
-                        onClick={() =>
-                          setFaceSwapTargetImg(
-                            faceSwapTargetImg.includes('music')
-                              ? '/assets/showcase/podcast-studio.jpg'
-                              : '/assets/showcase/music-singer.jpg'
-                          )
-                        }
-                      >
-                        Switch Preset Clip
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* WORKFLOW 5: SEEDANCE 2.5 & VIDEO MODELS */}
-            {activeTab === 'seedance' && (
-              <div className="vs-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-                    Frontier AI Video Models Hub
-                  </h2>
-                  <select
-                    className="vs-select"
-                    style={{ width: 'auto' }}
-                    value={selectedVideoModel}
-                    onChange={(e) => setSelectedVideoModel(e.target.value)}
-                  >
-                    <option value="seedance-2.5">Seedance 2.5 (Multi-Ref 2K)</option>
-                    <option value="kling-o3">Kling O3 (4K 60fps Omni)</option>
-                    <option value="minimax-h3">MiniMax H3 (Native Stereo 2K)</option>
-                    <option value="wan-3.0">Wan 3.0 (30s Single-Take)</option>
-                  </select>
-                </div>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {['Text To Video', 'Image To Video', '30-Second Clips', 'AI Video Ads', 'Redraw Editing'].map(
-                    (m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setSeedanceSubMode(m)}
-                        className={seedanceSubMode === m ? 'vs-tag vs-tag-brand' : 'vs-tag'}
-                        style={{ padding: '6px 12px', cursor: 'pointer' }}
-                      >
-                        {m}
-                      </button>
-                    )
-                  )}
-                </div>
-
-                <textarea
-                  className="vs-textarea"
-                  value={seedancePrompt}
-                  onChange={(e) => setSeedancePrompt(e.target.value)}
-                />
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Clip Duration:</span>
-                  {[5, 8, 15, 30].map((sec) => (
-                    <button
-                      key={sec}
-                      type="button"
-                      onClick={() => setSeedanceDuration(sec)}
-                      className={seedanceDuration === sec ? 'vs-btn vs-btn-primary vs-btn-sm' : 'vs-btn vs-btn-secondary vs-btn-sm'}
-                    >
-                      {sec}s
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* WORKFLOW 6: VIDEO PODCAST (DUAL HOST) */}
-            {activeTab === 'podcast' && (
-              <div className="vs-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-                    AI Video Podcast · Auto Two-Host Split Studio
-                  </h2>
-                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-                    Assign two AI hosts or upload a Google NotebookLM podcast MP3 to render an ON-AIR broadcast episode.
-                  </p>
-                </div>
-
-                <div className="vs-grid-2">
-                  <div style={{ padding: 14, borderRadius: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border-hairline)' }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-teal)', marginBottom: 8 }}>
-                      HOST 01 (LEFT MIC)
-                    </div>
-                    <select
-                      className="vs-select"
-                      style={{ marginBottom: 8 }}
-                      value={selectedAvatarId}
-                      onChange={(e) => setSelectedAvatarId(e.target.value)}
-                    >
-                      {avatars.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
-                      ))}
-                    </select>
-                    <select
-                      className="vs-select"
-                      value={selectedVoiceId}
-                      onChange={(e) => setSelectedVoiceId(e.target.value)}
-                    >
-                      {voices.map((v) => (
-                        <option key={v.id} value={v.id}>{v.name} · {v.language}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={{ padding: 14, borderRadius: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border-hairline)' }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-brand)', marginBottom: 8 }}>
-                      HOST 02 (RIGHT MIC)
-                    </div>
-                    <select
-                      className="vs-select"
-                      style={{ marginBottom: 8 }}
-                      value={secondaryAvatarId}
-                      onChange={(e) => setSecondaryAvatarId(e.target.value)}
-                    >
-                      {avatars.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
-                      ))}
-                    </select>
-                    <select
-                      className="vs-select"
-                      value={secondaryVoiceId}
-                      onChange={(e) => setSecondaryVoiceId(e.target.value)}
-                    >
-                      {voices.map((v) => (
-                        <option key={v.id} value={v.id}>{v.name} · {v.language}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {podcastLines.map((line, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button
-                        type="button"
-                        className={line.host === 'A' ? 'vs-tag vs-tag-teal' : 'vs-tag vs-tag-brand'}
-                        onClick={() => {
-                          const next = [...podcastLines];
-                          next[idx] = { ...line, host: line.host === 'A' ? 'B' : 'A' };
-                          setPodcastLines(next);
-                        }}
-                      >
-                        Host {line.host}
-                      </button>
-                      <input
-                        className="vs-input"
-                        value={line.text}
-                        onChange={(e) => {
-                          const next = [...podcastLines];
-                          next[idx] = { ...line, text: e.target.value };
-                          setPodcastLines(next);
-                        }}
-                      />
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="vs-btn vs-btn-secondary vs-btn-sm"
-                    style={{ alignSelf: 'flex-start' }}
-                    onClick={() =>
-                      setPodcastLines((prev) => [
-                        ...prev,
-                        { host: prev.length % 2 === 0 ? 'A' : 'B', text: 'Let us show an example clip right now!' },
-                      ])
-                    }
-                  >
-                    <Plus size={14} /> Add Dialogue Turn
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* WORKFLOW 7: AI PRESENTATION (SLIDES TO VIDEO) */}
-            {activeTab === 'presentation' && (
-              <div className="vs-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-                      AI Presentation Maker · Slides to Presenter Video
-                    </h2>
-                    <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-                      Edit slide deck headlines, bullet points, and presenter narration — rendered with Picture-in-Picture avatar.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="vs-btn vs-btn-secondary vs-btn-sm"
-                    onClick={() =>
-                      setSlides((prev) => [
-                        ...prev,
-                        {
-                          id: `slide_${Date.now()}`,
-                          shotNumber: prev.length + 1,
-                          title: `Key Takeaway 0${prev.length + 1}`,
-                          visualPrompt: 'Consistent avatar delivery across 88 languages with zero studio reshoots.',
-                          script: 'Finally, teams can update any slide in seconds without re-recording.',
-                          cameraMotion: `Slide 0${prev.length + 1}`,
-                          durationSec: 5,
-                        },
-                      ])
-                    }
-                  >
-                    <Plus size={14} /> Add Slide
-                  </button>
-                </div>
-
-                {slides.map((sl, idx) => (
-                  <div
-                    key={sl.id}
-                    style={{
-                      padding: 16,
-                      borderRadius: 12,
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-hairline)',
-                      display: 'flex',
-                      flexDirection: 'column',
                       gap: 8,
+                      paddingBottom: 14,
+                      borderBottom: '1px solid rgba(255,255,255,0.07)',
+                      marginBottom: 14,
                     }}
                   >
-                    <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--accent-brand)' }}>
-                      SLIDE 0{idx + 1}
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      onClick={() =>
+                        setAvatarModel((m) =>
+                          m === 'V-Character 4.0' ? 'V-Character 5.0 Pro' : 'V-Character 4.0'
+                        )
+                      }
+                    >
+                      <span>{avatarModel}</span>
+                      <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      onClick={() => setGreenScreen((g) => !g)}
+                      title="Green Screen Chroma Cutout"
+                    >
+                      <span style={{ fontSize: '0.75rem' }}>BG</span>
+                      <span className={`vs-switch ${greenScreen ? 'on' : ''}`}>
+                        <span className="vs-switch-thumb" />
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      onClick={() =>
+                        setAspectRatio((ar) => (ar === '9:16' ? '16:9' : ar === '16:9' ? '1:1' : '9:16'))
+                      }
+                    >
+                      <span>{aspectRatio}</span>
+                      <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                    </button>
+
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        background: '#161822',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 9,
+                        padding: 2,
+                        marginLeft: 'auto',
+                      }}
+                    >
+                      {(['720p', '1080p', '2K'] as ResolutionOption[]).map((resOpt) => (
+                        <button
+                          key={resOpt}
+                          type="button"
+                          onClick={() => setResolution(resOpt)}
+                          style={{
+                            padding: '5px 11px',
+                            borderRadius: 7,
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            background: resolution === resOpt ? '#262938' : 'transparent',
+                            color: resolution === resOpt ? '#ffffff' : 'rgba(255,255,255,0.52)',
+                          }}
+                        >
+                          {resOpt}
+                        </button>
+                      ))}
                     </div>
-                    <input
-                      className="vs-input"
-                      value={sl.title}
-                      onChange={(e) => {
-                        const next = [...slides];
-                        next[idx] = { ...sl, title: e.target.value };
-                        setSlides(next);
+                  </div>
+
+                  {/* Footer: Credits Bills ⓘ  ---------  [ Generate ] */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setLedgerModalOpen(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: '0.78rem',
+                        color: 'var(--text-muted)',
                       }}
-                      placeholder="Slide Headline"
-                    />
-                    <input
-                      className="vs-input"
-                      value={sl.visualPrompt}
-                      onChange={(e) => {
-                        const next = [...slides];
-                        next[idx] = { ...sl, visualPrompt: e.target.value };
-                        setSlides(next);
-                      }}
-                      placeholder="Slide Bullet Summary"
-                    />
-                    <input
-                      className="vs-input"
-                      value={sl.script}
-                      onChange={(e) => {
-                        const next = [...slides];
-                        next[idx] = { ...sl, script: e.target.value };
-                        setSlides(next);
-                      }}
-                      placeholder="Presenter Spoken Voiceover"
-                    />
+                    >
+                      <span>Credits Bills ({creditQuote.totalCredits} cr)</span>
+                      <Info size={13} />
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isRendering}
+                      onClick={() =>
+                        executeStudioRender({
+                          workflow: 'ai-video',
+                          title: `${selectedAvatar.name} — Talking Video`,
+                          script:
+                            scriptText.trim() ||
+                            selectedVoice?.sampleText ||
+                            'Welcome to VisionStory! Turn any photo and script into a lifelike AI talking video.',
+                          avatarImg: selectedAvatar.image,
+                          aspect: aspectRatio,
+                          res: resolution,
+                          green: greenScreen,
+                          cinematic: videoMode === 'cinematic',
+                          durationSec: estimatedSec,
+                        })
+                      }
+                      className="vs-btn vs-btn-primary"
+                      style={{ height: 40, padding: '0 22px' }}
+                    >
+                      {isRendering ? `Rendering ${renderProgress}%` : 'Generate'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Example & User Creations Gallery Below */}
+            <div style={{ maxWidth: 1120, margin: '34px auto 0' }}>
+              <h3 style={{ fontSize: '1.08rem', fontWeight: 700, marginBottom: 14 }}>Example</h3>
+              <div className="vs-grid-4">
+                {EXAMPLE_VIDEOS.map((ex) => (
+                  <div
+                    key={ex.id}
+                    className="vs-card vs-card-interactive"
+                    style={{ overflow: 'hidden', cursor: 'pointer' }}
+                    onClick={() => {
+                      setScriptText(ex.script);
+                      showToast(`Loaded example script: "${ex.title}"`);
+                    }}
+                  >
+                    <div style={{ position: 'relative', height: 210 }}>
+                      <img src={ex.avatar} alt={ex.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          bottom: 8,
+                          left: 8,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          background: 'rgba(0,0,0,0.72)',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {ex.duration} · {ex.resolution}
+                      </span>
+                    </div>
+                    <div style={{ padding: '11px 13px' }}>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {ex.title}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
-
-            {/* SHARED BOTTOM OUTPUT BAR (Aspect Ratio, Resolution, Green Screen, Credit Bill, Generate) */}
-            <div
-              className="vs-card"
-              style={{
-                padding: 18,
-                display: 'flex',
-                flexWrap: 'wrap',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 14,
-                position: 'relative',
-              }}
-            >
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-                <div className="vs-segmented">
-                  {(['9:16', '1:1', '16:9'] as AspectRatioOption[]).map((ar) => (
-                    <button
-                      key={ar}
-                      type="button"
-                      className={`vs-segmented-btn ${aspectRatio === ar ? 'active' : ''}`}
-                      onClick={() => setAspectRatio(ar)}
-                    >
-                      {ar}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="vs-segmented">
-                  {(['720p', '1080p', '2K'] as ResolutionOption[]).map((res) => (
-                    <button
-                      key={res}
-                      type="button"
-                      className={`vs-segmented-btn ${resolution === res ? 'active' : ''}`}
-                      onClick={() => setResolution(res)}
-                    >
-                      {res}
-                    </button>
-                  ))}
-                </div>
-
-                <label
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontSize: '0.83rem',
-                    cursor: 'pointer',
-                    padding: '6px 10px',
-                    borderRadius: 8,
-                    background: greenScreen ? 'var(--accent-teal-soft)' : 'var(--bg-elevated)',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={greenScreen}
-                    onChange={(e) => setGreenScreen(e.target.checked)}
-                  />
-                  <Layers size={14} />
-                  <span>{t.studio.greenScreen}</span>
-                </label>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {/* Credits Bills Breakdown Popover Trigger */}
-                <button
-                  type="button"
-                  className="vs-btn vs-btn-secondary vs-btn-sm"
-                  onClick={() => setShowBillPopover((v) => !v)}
-                  id="studio-credits-bill-btn"
-                >
-                  <Coins size={14} style={{ color: 'var(--accent-amber)' }} />
-                  <span>
-                    {t.studio.creditsBills}: <strong>{creditBill.totalCredits}</strong>
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleGenerateVideo}
-                  disabled={isRendering}
-                  className="vs-btn vs-btn-primary"
-                  id="studio-generate-btn"
-                >
-                  <Sparkles size={16} />
-                  <span>
-                    {isRendering ? `${t.studio.generating} ${renderProgress}%` : t.studio.generate}
-                  </span>
-                </button>
-              </div>
-
-              {/* Popover matching app.visionstory.ai Credits Bills */}
-              {showBillPopover && (
-                <div
-                  className="vs-card"
-                  style={{
-                    position: 'absolute',
-                    bottom: 'calc(100% + 10px)',
-                    right: 18,
-                    width: 320,
-                    padding: 16,
-                    zIndex: 50,
-                    background: 'hsl(222, 20%, 9%)',
-                  }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 10 }}>
-                    Credits Bill Breakdown
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Estimated Video Duration</span>
-                      <strong>{creditBill.estimatedDurationSec}s</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>4s Intervals</span>
-                      <strong>×{creditBill.intervals}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Base Credits (720p)</span>
-                      <strong>{creditBill.baseCredits}</strong>
-                    </div>
-                    {creditBill.resolutionAddonCredits > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Resolution Add-on ({resolution})</span>
-                        <strong>+{creditBill.resolutionAddonCredits}</strong>
-                      </div>
-                    )}
-                    {creditBill.greenScreenAddonCredits > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Green Screen (+0.25×)</span>
-                        <strong>+{creditBill.greenScreenAddonCredits}</strong>
-                      </div>
-                    )}
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        paddingTop: 8,
-                        marginTop: 4,
-                        borderTop: '1px solid var(--border-hairline)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.88rem',
-                      }}
-                    >
-                      <span>Total Credits (Rounded Up)</span>
-                      <strong style={{ color: 'var(--accent-brand)' }}>{creditBill.totalCredits} cr</strong>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
-      </section>
 
-      {/* RIGHT PANEL: LIVE PLAYER & CREATIONS FEED */}
-      <aside className="vs-studio-right">
-        <div style={{ fontWeight: 700, fontSize: '0.96rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{t.studio.creations}</span>
-          <span className="vs-tag">{projects.length}</span>
-        </div>
+        {/* =========================================================
+            TAB 2: AI AGENT (Exact 1:1 u02_ai_agent.png)
+            ========================================================= */}
+        {activeTab === 'ai-agent' && (
+          <div style={{ maxWidth: 1060, margin: '0 auto' }}>
+            <h1 className="vs-studio-title">Turn your idea into an engaging talking video</h1>
 
-        {/* Active Video Player Card */}
-        {activeProject && (
-          <div className="vs-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div
-              style={{
-                borderRadius: 12,
-                overflow: 'hidden',
-                background: '#080b11',
-                position: 'relative',
-                aspectRatio:
-                  activeProject.aspectRatio === '9:16'
-                    ? '9 / 14'
-                    : activeProject.aspectRatio === '1:1'
-                    ? '1 / 1'
-                    : '16 / 9',
-                maxHeight: 330,
-              }}
-            >
-              {renderedVideoUrls[activeProject.id] ? (
-                <video
-                  key={renderedVideoUrls[activeProject.id]}
-                  src={renderedVideoUrls[activeProject.id]}
-                  controls
-                  autoPlay
-                  loop
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                />
-              ) : (
-                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            {/* Centered Agent Composer Card */}
+            <div className="vs-composer-card" style={{ marginBottom: 26 }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                <button
+                  type="button"
+                  className="vs-ctrl-pill"
+                  style={{ height: 38, padding: '0 12px', gap: 9 }}
+                  onClick={() => {
+                    const idx = avatars.findIndex((a) => a.id === selectedAvatar.id);
+                    const next = avatars[(idx + 1) % avatars.length];
+                    if (next) setSelectedAvatarId(next.id);
+                  }}
+                >
                   <img
-                    src={activeProject.avatarImage}
-                    alt={activeProject.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    src={selectedAvatar.image}
+                    alt={selectedAvatar.name}
+                    style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'cover' }}
                   />
-                  <div
+                  <span>Avatar ({selectedAvatar.name})</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="vs-ctrl-pill"
+                  style={{ height: 38, padding: '0 12px', gap: 9 }}
+                  onClick={() => {
+                    const idx = voices.findIndex((v) => v.id === selectedVoice?.id);
+                    const next = voices[(idx + 1) % voices.length];
+                    if (next) setSelectedVoiceId(next.id);
+                  }}
+                >
+                  <Volume2 size={15} style={{ color: '#38bdf8' }} />
+                  <span>Auto Voice ({selectedVoice?.name})</span>
+                </button>
+              </div>
+
+              <textarea
+                className="vs-clean-textarea"
+                rows={4}
+                placeholder="Describe your scene, message, or story..."
+                value={agentPrompt}
+                onChange={(e) => setAgentPrompt(e.target.value)}
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="vs-ctrl-pill"
+                    style={{ width: 34, padding: 0, justifyContent: 'center' }}
+                    onClick={() =>
+                      setAgentPrompt(
+                        'Create a 3-shot SaaS launch video introducing V-Character 4.0 lifelike avatars, global localization in 88 languages, and instant API automation.'
+                      )
+                    }
+                    title="Insert Sample Brief"
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="vs-ctrl-pill"
+                    onClick={() =>
+                      setAspectRatio((ar) => (ar === '16:9' ? '9:16' : ar === '9:16' ? '1:1' : '16:9'))
+                    }
+                  >
+                    <span>{aspectRatio}</span>
+                    <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isPlanningAgent}
+                  className="vs-circle-submit"
+                  onClick={() => handleRunAgentPlanner()}
+                  title="Plan Multi-Shot Video"
+                >
+                  <ArrowUp size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Interactive Storyboard Output when AI Agent has planned shots */}
+            {agentShots.length > 0 && (
+              <div className="vs-card" style={{ padding: 22, marginBottom: 28, borderColor: 'rgba(98,93,245,0.45)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div>
+                    <span className="vs-tag vs-tag-brand" style={{ marginBottom: 4 }}>AI Agent Multi-Shot Plan</span>
+                    <h3 className="vs-h3">{agentTitle}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isRendering}
+                    className="vs-btn vs-btn-primary vs-btn-sm"
+                    onClick={() =>
+                      executeStudioRender({
+                        workflow: 'ai-agent',
+                        title: agentTitle || 'AI Agent Video',
+                        script: agentShots.map((s) => s.script).join(' '),
+                        avatarImg: selectedAvatar.image,
+                        aspect: aspectRatio,
+                        res: '1080p',
+                        durationSec: agentShots.reduce((acc, s) => acc + s.durationSec, 0),
+                        shots: agentShots,
+                      })
+                    }
+                  >
+                    <Play size={14} /> Render Full Multi-Shot Video
+                  </button>
+                </div>
+
+                <div className="vs-grid-3" style={{ marginBottom: 14 }}>
+                  {agentShots.map((shot, idx) => (
+                    <div key={shot.id} style={{ background: '#161822', borderRadius: 12, padding: 14, border: '1px solid var(--border-hairline)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#a59eff', fontWeight: 700, marginBottom: 6 }}>
+                        <span>SHOT {idx + 1} · {shot.cameraMotion}</span>
+                        <span>{shot.durationSec}s</span>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: '0.86rem', marginBottom: 6 }}>{shot.title}</div>
+                      <textarea
+                        className="vs-textarea"
+                        rows={3}
+                        style={{ fontSize: '0.78rem' }}
+                        value={shot.script}
+                        onChange={(e) => {
+                          const updated = [...agentShots];
+                          updated[idx] = { ...shot, script: e.target.value };
+                          setAgentShots(updated);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="text"
+                    className="vs-input"
+                    placeholder="Chat to refine any shot (e.g., 'Make Shot 1 punchier for TikTok')..."
+                    value={agentChatEdit}
+                    onChange={(e) => setAgentChatEdit(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="vs-btn vs-btn-secondary vs-btn-sm"
+                    onClick={() => handleRunAgentPlanner(agentChatEdit || 'Make narration more energetic')}
+                  >
+                    Refine Shots
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 4 Quick Workflow Shortcut Cards matching u02_ai_agent.png */}
+            <div className="vs-grid-4" style={{ marginBottom: 34 }}>
+              {[
+                { id: 'viral-music', title: 'Viral Music', img: '/assets/showcase/music-singer.jpg', icon: <VsIconViralMusic /> },
+                { id: 'face-swap', title: 'Face Swap', img: '/assets/avatars/claire.jpg', icon: <VsIconFaceSwap /> },
+                { id: 'podcast', title: 'Video Podcast', img: '/assets/showcase/podcast-mindful.jpg', icon: <VsIconPodcast /> },
+                { id: 'presentation', title: 'AI Presentation', img: '/assets/avatars/elena.jpg', icon: <VsIconPresentation /> },
+              ].map((wf) => (
+                <button
+                  key={wf.id}
+                  type="button"
+                  onClick={() => setActiveTab(wf.id as SidebarTabId)}
+                  className="vs-card vs-card-interactive"
+                  style={{
+                    height: 132,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    textAlign: 'left',
+                  }}
+                >
+                  <img
+                    src={wf.img}
+                    alt={wf.title}
                     style={{
                       position: 'absolute',
-                      inset: 0,
-                      background: 'rgba(6, 9, 15, 0.45)',
-                      display: 'flex',
+                      right: 0,
+                      top: 0,
+                      width: '62%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      maskImage: 'linear-gradient(90deg, transparent 0%, #000 55%)',
+                      WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 55%)',
+                      opacity: 0.72,
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: 'relative',
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: 'rgba(255,255,255,0.1)',
+                      display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
+                    {wf.icon}
+                  </span>
+                  <span style={{ position: 'relative', fontWeight: 700, fontSize: '0.92rem' }}>{wf.title}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Recent Creations Header + All | Draft | Video */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Recent Creations</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['all', 'draft', 'video'] as const).map((f) => (
                     <button
+                      key={f}
                       type="button"
-                      onClick={() => handleRenderExistingProject(activeProject)}
-                      className="vs-btn vs-btn-primary vs-btn-sm"
+                      onClick={() => setCreationsFilter(f)}
+                      style={{
+                        padding: '5px 13px',
+                        borderRadius: 8,
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        textTransform: 'capitalize',
+                        background: creationsFilter === f ? '#232533' : 'transparent',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        color: creationsFilter === f ? '#fff' : 'var(--text-muted)',
+                      }}
                     >
-                      <Play size={14} /> Render & Play Preview
+                      {f}
                     </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 4, background: '#14151e', padding: 3, borderRadius: 8, border: '1px solid var(--border-hairline)' }}>
+                <button type="button" onClick={() => setViewLayout('grid')} style={{ padding: 5, opacity: viewLayout === 'grid' ? 1 : 0.45 }}>
+                  <LayoutGrid size={14} />
+                </button>
+                <button type="button" onClick={() => setViewLayout('list')} style={{ padding: 5, opacity: viewLayout === 'list' ? 1 : 0.45 }}>
+                  <List size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className={viewLayout === 'grid' ? 'vs-grid-3' : ''} style={viewLayout === 'list' ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined}>
+              {(projects.length > 0
+                ? projects.map((p) => ({
+                    id: p.id,
+                    title: p.title,
+                    avatarImage: p.avatarImage,
+                    resolution: p.resolution,
+                    durationSec: p.durationSec,
+                    videoUrl: videoBlobMap[p.id] || p.videoDataUrl || '',
+                  }))
+                : EXAMPLE_VIDEOS.slice(0, 2).map((e) => ({
+                    id: e.id,
+                    title: e.title,
+                    avatarImage: e.avatar,
+                    resolution: e.resolution as ResolutionOption,
+                    durationSec: 28,
+                    videoUrl: '',
+                  }))
+              ).map((proj) => (
+                <div
+                  key={proj.id}
+                  className="vs-card vs-card-interactive"
+                  style={{ overflow: 'hidden', cursor: 'pointer' }}
+                  onClick={() => {
+                    if (proj.videoUrl) {
+                      setActiveVideoModal({
+                        title: proj.title,
+                        videoUrl: proj.videoUrl,
+                        resolution: proj.resolution,
+                        durationSec: proj.durationSec,
+                      });
+                    } else {
+                      setAgentPrompt(proj.title);
+                      handleRunAgentPlanner();
+                    }
+                  }}
+                >
+                  <div style={{ position: 'relative', height: 185 }}>
+                    <img src={proj.avatarImage} alt={proj.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 10,
+                        right: 10,
+                        padding: '2px 9px',
+                        borderRadius: 999,
+                        background: '#eab308',
+                        color: '#000',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                      }}
+                    >
+                      New
+                    </span>
+                  </div>
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ fontWeight: 650, fontSize: '0.86rem' }}>{proj.title}</div>
                   </div>
                 </div>
-              )}
-            </div>
-
-            <div style={{ fontWeight: 650, fontSize: '0.86rem', lineHeight: 1.35 }}>
-              {activeProject.title}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              <span className="vs-tag">{activeProject.resolution}</span>
-              <span className="vs-tag">{activeProject.aspectRatio}</span>
-              <span className="vs-tag">00:{String(activeProject.durationSec).padStart(2, '0')}</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                className="vs-btn vs-btn-secondary vs-btn-sm"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  const v = voices.find((vo) => vo.id === activeProject.voiceId) || voices[0];
-                  speakScript({ text: activeProject.script, voice: v, speed: activeProject.speed });
-                }}
-              >
-                <Volume2 size={14} /> {t.studio.playWithVoice}
-              </button>
-
-              {renderedVideoUrls[activeProject.id] && (
-                <a
-                  href={renderedVideoUrls[activeProject.id]}
-                  download={`${activeProject.id}-${activeProject.resolution}.webm`}
-                  className="vs-btn vs-btn-primary vs-btn-sm"
-                >
-                  <Download size={14} /> .webm
-                </a>
-              )}
+              ))}
             </div>
           </div>
         )}
 
-        {/* History List */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {projects.map((proj) => (
+        {/* =========================================================
+            TAB 3: VIRAL MUSIC (Exact 1:1 u03_viral_music.png)
+            ========================================================= */}
+        {activeTab === 'viral-music' && (
+          <div style={{ maxWidth: 1060, margin: '0 auto' }}>
+            <h1 className="vs-studio-title">
+              Turn your song into a {musicPerfMode === 'duet' ? 'duet' : 'solo'} performance
+            </h1>
+
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+              <div className="vs-mode-pill-group">
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${musicPerfMode === 'solo' ? 'active' : ''}`}
+                  onClick={() => setMusicPerfMode('solo')}
+                >
+                  <span>Solo</span>
+                </button>
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${musicPerfMode === 'duet' ? 'active' : ''}`}
+                  onClick={() => setMusicPerfMode('duet')}
+                >
+                  <span>Duet</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Warm Tinted Upload / Link Card */}
             <div
-              key={proj.id}
-              onClick={() => setActiveProject(proj)}
-              className="vs-card vs-card-interactive"
+              className="vs-composer-card"
               style={{
-                padding: 10,
-                display: 'flex',
-                gap: 10,
-                cursor: 'pointer',
-                borderColor: activeProject?.id === proj.id ? 'var(--accent-brand)' : undefined,
+                maxWidth: 740,
+                background: 'linear-gradient(145deg, rgba(65, 42, 46, 0.52) 0%, rgba(22, 23, 34, 0.92) 65%)',
+                padding: '34px 28px 22px',
+                marginBottom: 36,
               }}
             >
-              <img
-                src={proj.avatarImage}
-                alt={proj.title}
-                style={{ width: 58, height: 58, borderRadius: 9, objectFit: 'cover', flexShrink: 0 }}
+              <input
+                ref={musicUploadRef}
+                type="file"
+                accept="audio/*,video/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    setMusicFileName(f.name);
+                    showToast(`Loaded track: ${f.name}`);
+                  }
+                }}
               />
-              <div style={{ flex: 1, minWidth: 0 }}>
+
+              <div style={{ textAlign: 'center', marginBottom: 26 }}>
+                <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.68)', marginBottom: 16 }}>
+                  {musicFileName
+                    ? `Selected Track: ${musicFileName}`
+                    : 'Supported formats: MP3, MP4, MOV, WEBM, M4A'}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 16 }}>
+                  <button
+                    type="button"
+                    className="vs-btn vs-btn-primary vs-btn-sm"
+                    style={{ height: 38, padding: '0 20px' }}
+                    onClick={() => musicUploadRef.current?.click()}
+                  >
+                    <Upload size={14} />
+                    <span>Upload</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="vs-btn vs-btn-secondary vs-btn-sm"
+                    style={{ height: 38, padding: '0 20px' }}
+                    onClick={() =>
+                      executeStudioRender({
+                        workflow: 'viral-music',
+                        title: `${selectedAvatar.name} ${musicPerfMode === 'duet' ? '& Co-Star ' : ''}— Viral Music Video`,
+                        script:
+                          'Chasing neon city lights tonight, singing every beat in crystal harmony across the midnight skyline!',
+                        avatarImg: selectedAvatar.image,
+                        secondaryImg:
+                          musicPerfMode === 'duet'
+                            ? avatars.find((a) => a.id === duetAvatarId)?.image
+                            : undefined,
+                        aspect: '16:9',
+                        res: '1080p',
+                        durationSec: 10,
+                        music: 'synthwave',
+                      })
+                    }
+                  >
+                    <Folder size={14} />
+                    <span>Assets (Demo Song)</span>
+                  </button>
+                </div>
+
+                {musicPerfMode === 'duet' && (
+                  <div style={{ fontSize: '0.78rem', color: '#fbbf24' }}>
+                    Duet Performers: <strong>{selectedAvatar.name}</strong> +{' '}
+                    <button
+                      type="button"
+                      style={{ textDecoration: 'underline', color: '#fff' }}
+                      onClick={() => {
+                        const idx = avatars.findIndex((a) => a.id === duetAvatarId);
+                        const next = avatars[(idx + 1) % avatars.length];
+                        if (next) setDuetAvatarId(next.id);
+                      }}
+                    >
+                      {avatars.find((a) => a.id === duetAvatarId)?.name || 'Marcus'} (Change)
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 16, display: 'flex', gap: 8 }}>
                 <div
                   style={{
-                    fontSize: '0.82rem',
-                    fontWeight: 650,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    background: 'rgba(0,0,0,0.34)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 999,
+                    padding: '0 16px',
+                    height: 42,
                   }}
                 >
-                  {proj.title}
+                  <span style={{ width: 16, height: 16, borderRadius: '50%', background: '#f97316', display: 'inline-block' }} />
+                  <span style={{ width: 18, height: 13, borderRadius: 4, background: '#ef4444', display: 'inline-block' }} />
+                  <input
+                    type="text"
+                    value={musicUrlInput}
+                    onChange={(e) => setMusicUrlInput(e.target.value)}
+                    placeholder="Paste a link to extract the music file (Suno, Udio, YouTube)"
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      fontSize: '0.84rem',
+                      color: '#fff',
+                    }}
+                  />
                 </div>
-                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: 3 }}>
-                  00:{String(proj.durationSec).padStart(2, '0')} · {proj.resolution} · {proj.workflow}
-                </div>
+                {musicUrlInput.trim() && (
+                  <button
+                    type="button"
+                    className="vs-btn vs-btn-primary vs-btn-sm"
+                    onClick={() =>
+                      executeStudioRender({
+                        workflow: 'viral-music',
+                        title: `Extracted Song MV — ${selectedAvatar.name}`,
+                        script: 'Singing extracted track with frame-accurate vocal lip sync!',
+                        avatarImg: selectedAvatar.image,
+                        aspect: '9:16',
+                        res: '1080p',
+                        durationSec: 10,
+                        music: 'synthwave',
+                      })
+                    }
+                  >
+                    Generate MV
+                  </button>
+                )}
               </div>
-              <button
-                type="button"
-                className="vs-btn-ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteProject(proj.id);
-                }}
-                title="Delete project"
-              >
-                <Trash2 size={14} />
+            </div>
+
+            {/* Videos + Explore Grid */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontWeight: 700, fontSize: '1.08rem' }}>Videos</span>
+                <span className="vs-tag">View drafts</span>
+              </div>
+              <button type="button" className="vs-tag" onClick={() => setActiveTab('library')}>
+                See All
               </button>
             </div>
-          ))}
+
+            {projects.filter((p) => p.workflow === 'viral-music').length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '26px 0 38px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                No music videos yet — click Assets (Demo Song) or paste a link above to render one!
+              </div>
+            ) : (
+              <div className="vs-grid-4" style={{ marginBottom: 32 }}>
+                {projects
+                  .filter((p) => p.workflow === 'viral-music')
+                  .map((mv) => {
+                    const mvUrl = videoBlobMap[mv.id] || mv.videoDataUrl;
+                    return (
+                      <div
+                        key={mv.id}
+                        className="vs-card vs-card-interactive"
+                        style={{ overflow: 'hidden', cursor: 'pointer' }}
+                        onClick={() =>
+                          mvUrl &&
+                          setActiveVideoModal({
+                            title: mv.title,
+                            videoUrl: mvUrl,
+                            resolution: mv.resolution,
+                            durationSec: mv.durationSec,
+                          })
+                        }
+                      >
+                        <img src={mv.avatarImage} alt={mv.title} style={{ width: '100%', height: 175, objectFit: 'cover' }} />
+                        <div style={{ padding: 10, fontSize: '0.82rem', fontWeight: 650 }}>{mv.title}</div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            <div style={{ fontWeight: 700, fontSize: '1.08rem', marginBottom: 14 }}>Explore</div>
+            <div className="vs-grid-4">
+              {[
+                { title: 'Acoustic Courtyard Ballad', img: '/assets/avatars/marcus.jpg' },
+                { title: 'Midnight Neon Synth Pop', img: '/assets/showcase/music-singer.jpg' },
+                { title: ' Highland Castle Anthem', img: '/assets/showcase/seedance-cinema.jpg' },
+                { title: 'Studio Booth R&B Session', img: '/assets/avatars/elena.jpg' },
+              ].map((card) => (
+                <div
+                  key={card.title}
+                  className="vs-card vs-card-interactive"
+                  style={{ overflow: 'hidden', position: 'relative', height: 220, cursor: 'pointer' }}
+                  onClick={() =>
+                    executeStudioRender({
+                      workflow: 'viral-music',
+                      title: card.title,
+                      script: `${card.title} — VisionStory AI Singing Performance`,
+                      avatarImg: card.img,
+                      aspect: '9:16',
+                      res: '1080p',
+                      durationSec: 8,
+                      music: 'synthwave',
+                    })
+                  }
+                >
+                  <img src={card.img} alt={card.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      left: 10,
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      background: 'rgba(0,0,0,0.55)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Play size={12} fill="white" />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 4: FACE SWAP (Exact 1:1 u04_face_swap.png)
+            ========================================================= */}
+        {activeTab === 'face-swap' && (
+          <div style={{ maxWidth: 820, margin: '0 auto' }}>
+            <h1 className="vs-studio-title">
+              Instant face replacement for {swapMediaType === 'video' ? 'video clips' : 'photos'}
+            </h1>
+
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+              <div className="vs-mode-pill-group">
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${swapMediaType === 'video' ? 'active' : ''}`}
+                  onClick={() => setSwapMediaType('video')}
+                >
+                  <span>Video</span>
+                </button>
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${swapMediaType === 'image' ? 'active' : ''}`}
+                  onClick={() => setSwapMediaType('image')}
+                >
+                  <span>Image</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="vs-card" style={{ padding: 22, borderRadius: 22 }}>
+              <input
+                ref={swapUploadRef}
+                type="file"
+                accept={swapMediaType === 'video' ? 'video/*,image/*' : 'image/*'}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) showToast(`Selected target media: ${f.name}`);
+                }}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 18, marginBottom: 18 }}>
+                {/* Left Upload Slot */}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '28px 16px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+                    <img
+                      src={selectedAvatar.image}
+                      alt="Face source"
+                      style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover', border: '2px solid #fff', transform: 'rotate(-6deg)' }}
+                    />
+                    <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>→</span>
+                    <img
+                      src={['/assets/avatars/hannah.jpg', '/assets/avatars/linh.jpg', '/assets/avatars/nina.jpg'][swapTemplateIdx]}
+                      alt="Target clip"
+                      style={{ width: 126, height: 92, borderRadius: 12, objectFit: 'cover', border: '2px solid #fff' }}
+                    />
+                  </div>
+
+                  <div style={{ fontWeight: 700, fontSize: '0.96rem', marginBottom: 4 }}>
+                    Upload your {swapMediaType}
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                    Supported formats: MP4, MOV, WEBM
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      className="vs-btn vs-btn-primary vs-btn-sm"
+                      onClick={() => swapUploadRef.current?.click()}
+                    >
+                      <Upload size={14} /> Upload
+                    </button>
+                    <button
+                      type="button"
+                      className="vs-btn vs-btn-secondary vs-btn-sm"
+                      onClick={() => {
+                        const idx = avatars.findIndex((a) => a.id === selectedAvatar.id);
+                        const next = avatars[(idx + 1) % avatars.length];
+                        if (next) setSelectedAvatarId(next.id);
+                      }}
+                    >
+                      <Folder size={14} /> Face: {selectedAvatar.name}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right Trending Templates Panel */}
+                <div style={{ background: '#171923', borderRadius: 16, padding: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', textAlign: 'center', marginBottom: 12 }}>
+                    Trending Templates
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                    {['/assets/avatars/hannah.jpg', '/assets/avatars/linh.jpg', '/assets/avatars/nina.jpg'].map(
+                      (tplImg, idx) => (
+                        <button
+                          key={tplImg}
+                          type="button"
+                          onClick={() => setSwapTemplateIdx(idx)}
+                          style={{
+                            height: 190,
+                            borderRadius: 10,
+                            overflow: 'hidden',
+                            border: swapTemplateIdx === idx ? '2px solid #625df5' : '2px solid transparent',
+                          }}
+                        >
+                          <img src={tplImg} alt={`Template ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Controls Row */}
+              <div
+                style={{
+                  borderTop: '1px solid rgba(255,255,255,0.07)',
+                  paddingTop: 14,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'inline-flex', background: '#161822', padding: 3, borderRadius: 9, border: '1px solid var(--border-hairline)' }}>
+                    {(['Face only', 'Full body', 'Motion control'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setSwapControlMode(m)}
+                        style={{
+                          padding: '5px 11px',
+                          borderRadius: 7,
+                          fontSize: '0.76rem',
+                          fontWeight: 600,
+                          background: swapControlMode === m ? '#262938' : 'transparent',
+                          color: swapControlMode === m ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'inline-flex', background: '#161822', padding: 3, borderRadius: 9, border: '1px solid var(--border-hairline)' }}>
+                    {(['720p', '1080p'] as ResolutionOption[]).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setSwapRes(r)}
+                        style={{
+                          padding: '5px 11px',
+                          borderRadius: 7,
+                          fontSize: '0.76rem',
+                          fontWeight: 600,
+                          background: swapRes === r ? '#262938' : 'transparent',
+                          color: swapRes === r ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isRendering}
+                  className="vs-btn vs-btn-primary vs-btn-sm"
+                  style={{ height: 38, padding: '0 22px' }}
+                  onClick={() =>
+                    executeStudioRender({
+                      workflow: 'face-swap',
+                      title: `Face Swap (${swapControlMode}) — ${selectedAvatar.name}`,
+                      script: `Realistic HD Face Swap tracking ${selectedAvatar.name} across motion and lighting.`,
+                      avatarImg: selectedAvatar.image,
+                      secondaryImg: ['/assets/avatars/hannah.jpg', '/assets/avatars/linh.jpg', '/assets/avatars/nina.jpg'][swapTemplateIdx],
+                      aspect: '9:16',
+                      res: swapRes,
+                      durationSec: 7,
+                    })
+                  }
+                >
+                  Generate
+                </button>
+              </div>
+
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 10 }}>
+                Swaps only the face and keeps the video&apos;s body, outfit and scene.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 5: SEEDANCE 2.5 (Exact 1:1 u05_seedance.png)
+            ========================================================= */}
+        {activeTab === 'seedance' && (
+          <div style={{ maxWidth: 820, margin: '0 auto' }}>
+            <h1 className="vs-studio-title">What will you create today?</h1>
+
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+              <div className="vs-mode-pill-group">
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${seedanceSubMode === 'generate' ? 'active' : ''}`}
+                  onClick={() => setSeedanceSubMode('generate')}
+                >
+                  <span>Generate Video</span>
+                </button>
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${seedanceSubMode === 'reference' ? 'active' : ''}`}
+                  onClick={() => setSeedanceSubMode('reference')}
+                >
+                  <span>Reference to Video</span>
+                </button>
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${seedanceSubMode === 'frames' ? 'active' : ''}`}
+                  onClick={() => setSeedanceSubMode('frames')}
+                >
+                  <span>Start &amp; End Frames</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="vs-composer-card">
+              {seedanceSubMode !== 'generate' && (
+                <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                  <span className="vs-ctrl-pill">
+                    <img src={selectedAvatar.image} alt="Ref 1" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
+                    <span>{seedanceSubMode === 'frames' ? 'Start Frame' : 'Reference #1'}</span>
+                  </span>
+                  {seedanceSubMode === 'frames' && (
+                    <span className="vs-ctrl-pill">
+                      <img src="/assets/showcase/seedance-cinema.jpg" alt="End Frame" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
+                      <span>End Frame</span>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <textarea
+                className="vs-clean-textarea"
+                rows={5}
+                placeholder="Describe your video. Example: A paper boat sails through a rain-soaked city as the camera follows at street level."
+                value={seedancePrompt}
+                onChange={(e) => setSeedancePrompt(e.target.value)}
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="vs-ctrl-pill"
+                    style={{ width: 34, padding: 0, justifyContent: 'center' }}
+                    onClick={() =>
+                      setSeedancePrompt(
+                        'Cinematic neo-noir Tokyo street in warm neon rain, camera tracking smoothly as our presenter walks forward in 2K anamorphic bokeh.'
+                      )
+                    }
+                    title="Fill Sample Cinematic Prompt"
+                  >
+                    <Plus size={16} />
+                  </button>
+
+                  <select
+                    className="vs-ctrl-pill"
+                    value={seedanceModelId}
+                    onChange={(e) => setSeedanceModelId(e.target.value)}
+                    style={{ outline: 'none', cursor: 'pointer' }}
+                  >
+                    {AI_MODELS.filter((m) => m.category === 'video' || m.id === 'v-character-4').map((m) => (
+                      <option key={m.id} value={m.id} style={{ background: '#161822' }}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    className="vs-ctrl-pill"
+                    onClick={() => setSeedanceDuration((d) => (d === 10 ? 15 : d === 15 ? 5 : 10))}
+                  >
+                    <Sliders size={13} />
+                    <span>{resolution} | {seedanceDuration}s | auto</span>
+                    <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isRendering}
+                  className="vs-circle-submit"
+                  onClick={() =>
+                    executeStudioRender({
+                      workflow: 'seedance',
+                      title: `${AI_MODELS.find((m) => m.id === seedanceModelId)?.name || 'Seedance 2.5'} Clip`,
+                      script:
+                        seedancePrompt.trim() ||
+                        'A paper boat sails through a rain-soaked neon city at street level in cinematic slow motion.',
+                      avatarImg: '/assets/showcase/seedance-cinema.jpg',
+                      aspect: '16:9',
+                      res: '1080p',
+                      cinematic: true,
+                      durationSec: seedanceDuration,
+                      music: 'cinema',
+                    })
+                  }
+                >
+                  <ArrowUp size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 6: VIDEO PODCAST (Exact 1:1 u06_podcast.png)
+            ========================================================= */}
+        {activeTab === 'podcast' && (
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <h1 className="vs-studio-title">Video Podcast</h1>
+
+            {/* 2-Column Podcast Studio Composer Card */}
+            <div
+              className="vs-composer-card"
+              style={{
+                maxWidth: 760,
+                display: 'grid',
+                gridTemplateColumns: '260px 1fr',
+                gap: 18,
+                marginBottom: 42,
+              }}
+            >
+              <div style={{ background: '#171923', borderRadius: 14, padding: 10 }}>
+                <img
+                  src={selectedPodcastStudio.image}
+                  alt={selectedPodcastStudio.title}
+                  style={{ width: '100%', height: 148, objectFit: 'cover', borderRadius: 10, marginBottom: 8 }}
+                />
+                <div style={{ fontSize: '0.8rem', fontWeight: 650, padding: '0 4px' }}>
+                  {selectedPodcastStudio.title}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <textarea
+                  className="vs-clean-textarea"
+                  rows={5}
+                  placeholder="Describe what your podcast is about, including style, tone, etc. Or Add audio to start."
+                  value={podcastPrompt}
+                  onChange={(e) => setPodcastPrompt(e.target.value)}
+                />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      style={{ width: 34, padding: 0, justifyContent: 'center' }}
+                      onClick={() =>
+                        setPodcastPrompt(
+                          'Host A & Host B debate how AI Video Agents and V-Character 4.0 let solo creators run global media studios.'
+                        )
+                      }
+                    >
+                      <Plus size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      onClick={() =>
+                        setPodcastDurationLabel((d) => (d === '3 minutes' ? '5 minutes' : '3 minutes'))
+                      }
+                    >
+                      <Clock size={13} />
+                      <span>{podcastDurationLabel}</span>
+                      <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                    </button>
+                    <button
+                      type="button"
+                      className="vs-ctrl-pill"
+                      onClick={() => setPodcastAutoTranslate((v) => !v)}
+                    >
+                      <Globe size={13} />
+                      <span className={`vs-switch ${podcastAutoTranslate ? 'on' : ''}`}>
+                        <span className="vs-switch-thumb" />
+                      </span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isRendering}
+                    className="vs-circle-submit"
+                    onClick={() => {
+                      const hostA = avatars.find((a) => a.id === selectedPodcastStudio.hostAId) || STOCK_AVATARS[0];
+                      const hostB = avatars.find((a) => a.id === selectedPodcastStudio.hostBId) || STOCK_AVATARS[3];
+                      executeStudioRender({
+                        workflow: 'podcast',
+                        title: `${selectedPodcastStudio.title} Episode`,
+                        script:
+                          podcastPrompt.trim() ||
+                          'Welcome back to the studio! Today we are exploring how two-host AI video podcasts transform written research and NotebookLM audio into broadcast shows.',
+                        avatarImg: hostA.image,
+                        secondaryImg: hostB.image,
+                        aspect: '16:9',
+                        res: '1080p',
+                        durationSec: 12,
+                        music: 'podcast',
+                      });
+                    }}
+                  >
+                    <ArrowUp size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Select your podcast studio + Category Pills + 4 Studio Cards */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Select your podcast studio</h3>
+              <button
+                type="button"
+                className="vs-btn vs-btn-secondary vs-btn-sm"
+                onClick={() => avatarUploadRef.current?.click()}
+              >
+                + New Template
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+              {[
+                'All',
+                'My Studio',
+                'AI & Technology',
+                'Business',
+                'Education',
+                'Health & Care',
+                'Personal Growth',
+                'General',
+              ].map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setPodcastCategory(cat)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 8,
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    background: podcastCategory === cat ? '#272938' : 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    color: podcastCategory === cat ? '#fff' : 'rgba(255,255,255,0.7)',
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="vs-grid-4">
+              {PODCAST_STUDIOS.filter(
+                (st) => podcastCategory === 'All' || st.category === podcastCategory
+              ).map((studio) => (
+                <button
+                  key={studio.id}
+                  type="button"
+                  onClick={() => setSelectedStudioId(studio.id)}
+                  className="vs-card vs-card-interactive"
+                  style={{
+                    overflow: 'hidden',
+                    textAlign: 'left',
+                    borderColor: selectedStudioId === studio.id ? '#625df5' : undefined,
+                  }}
+                >
+                  <img src={studio.image} alt={studio.title} style={{ width: '100%', height: 175, objectFit: 'cover' }} />
+                  <div style={{ padding: '12px 14px', fontWeight: 650, fontSize: '0.88rem' }}>{studio.title}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 7: AI PRESENTATION (Exact 1:1 u07_presentation.png)
+            ========================================================= */}
+        {activeTab === 'presentation' && (
+          <div style={{ maxWidth: 1060, margin: '0 auto' }}>
+            <h1 className="vs-studio-title">Turn slides into engaging video</h1>
+
+            <div className="vs-composer-card" style={{ maxWidth: 760, marginBottom: 38 }}>
+              <input
+                ref={pptUploadRef}
+                type="file"
+                accept=".pptx,.pdf,.key,.txt,image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    setUploadedSlideName(f.name);
+                    showToast(`Uploaded deck: ${f.name}`);
+                  }
+                }}
+              />
+
+              <div
+                style={{
+                  border: '1px dashed rgba(255,255,255,0.14)',
+                  borderRadius: 14,
+                  background: 'rgba(255,255,255,0.03)',
+                  padding: '38px 20px',
+                  textAlign: 'center',
+                  marginBottom: 14,
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: '0.96rem', marginBottom: 6 }}>
+                  {uploadedSlideName ? `Deck Ready: ${uploadedSlideName}` : 'Drag your file to start uploading'}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 18 }}>
+                  Supported formats: .pptx / .keynote. We only support up to 30 slides per PPT.
+                </div>
+                <button
+                  type="button"
+                  className="vs-btn vs-btn-primary vs-btn-sm"
+                  style={{ height: 38, padding: '0 22px' }}
+                  onClick={() => pptUploadRef.current?.click()}
+                >
+                  <Upload size={14} /> Upload
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="vs-ctrl-pill"
+                    onClick={() => setPptDurationLabel((d) => (d === '3 minutes' ? '5 minutes' : '3 minutes'))}
+                  >
+                    <span>{pptDurationLabel}</span>
+                    <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="vs-ctrl-pill"
+                    onClick={() => setPptAiScript((v) => !v)}
+                  >
+                    <Sparkles size={13} />
+                    <span>AI Script</span>
+                    <span className={`vs-switch ${pptAiScript ? 'on' : ''}`}>
+                      <span className="vs-switch-thumb" />
+                    </span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isRendering}
+                  className="vs-circle-submit"
+                  onClick={() =>
+                    executeStudioRender({
+                      workflow: 'presentation',
+                      title: uploadedSlideName || 'A Step-by-Step Guide to AI Presentation',
+                      script: slideOutline.join('. '),
+                      avatarImg: selectedAvatar.image,
+                      aspect: '16:9',
+                      res: '1080p',
+                      durationSec: 12,
+                      shots: slideOutline.map((sl, i) => ({
+                        id: `sl_${i}`,
+                        shotNumber: i + 1,
+                        title: sl.split(':')[0] || `Slide ${i + 1}`,
+                        visualPrompt: sl,
+                        script: sl,
+                        durationSec: 4,
+                        cameraMotion: 'Medium Presenter + Slide PiP',
+                      })),
+                    })
+                  }
+                  title="Generate Slide Video"
+                >
+                  <ArrowUp size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Recent Creations matching u07_presentation.png */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Recent Creations</span>
+              <span className="vs-tag" style={{ background: '#252736', color: '#fff' }}>All</span>
+              <span className="vs-tag">Draft</span>
+              <span className="vs-tag">Video</span>
+            </div>
+
+            <div className="vs-grid-3">
+              <div
+                className="vs-card vs-card-interactive"
+                style={{ overflow: 'hidden', cursor: 'pointer' }}
+                onClick={() => {
+                  setSlideOutline([
+                    'Slide 1: Transform Any Deck Into Dynamic Talking Videos with AI',
+                    'Slide 2: Presenter Picture-in-Picture & Automatic AI Narration',
+                    'Slide 3: Export 1080p & 2K Training Videos in 88 Languages',
+                  ]);
+                  showToast('Loaded sample AI Presentation deck — click ↑ to render!');
+                }}
+              >
+                <div
+                  style={{
+                    height: 185,
+                    background: '#0d0e16',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                  }}
+                >
+                  <VisionStoryPrismLogo size={36} boxed={false} />
+                  <div style={{ fontWeight: 800, marginTop: 8 }}>
+                    Vision<span style={{ color: '#625df5' }}>Story</span>
+                  </div>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      padding: '2px 9px',
+                      borderRadius: 999,
+                      background: '#eab308',
+                      color: '#000',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                    }}
+                  >
+                    New
+                  </span>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      bottom: 10,
+                      left: 10,
+                      fontSize: '0.72rem',
+                      background: 'rgba(255,255,255,0.08)',
+                      padding: '2px 8px',
+                      borderRadius: 6,
+                    }}
+                  >
+                    02:38 · 1080p
+                  </span>
+                </div>
+                <div style={{ padding: '12px 14px' }}>
+                  <div style={{ fontWeight: 650, fontSize: '0.86rem' }}>A Step-by-Step Guide to AI Presentation</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 2 }}>Template Deck</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 8: AI TOOLS (Exact 1:1 u08_tools.png + Interactive Workbench)
+            ========================================================= */}
+        {activeTab === 'ai-tools' && (
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            {activeInlineSubTool ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setActiveInlineSubTool(null)}
+                  className="vs-btn vs-btn-secondary vs-btn-sm"
+                  style={{ marginBottom: 18 }}
+                >
+                  <ArrowLeft size={14} /> Back to AI Tools
+                </button>
+                <StudioToolsPanel
+                  initialSubTool={activeInlineSubTool}
+                  onAvatarCreated={(newId) => {
+                    setSelectedAvatarId(newId);
+                    setActiveTab('ai-video');
+                  }}
+                />
+              </div>
+            ) : (
+              <>
+                <h1 className="vs-studio-title" style={{ marginBottom: 6 }}>AI Tools</h1>
+                <p style={{ textAlign: 'center', fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 28 }}>
+                  Use VisionStory Tools to level up your creative process
+                </p>
+
+                <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 12 }}>Trending</div>
+                <div className="vs-grid-3" style={{ marginBottom: 32 }}>
+                  {[
+                    {
+                      title: 'AI Video Generator',
+                      desc: 'Create AI-generated video clips for your projects.',
+                      img: '/assets/avatars/olivia.jpg',
+                      action: () => setActiveTab('seedance'),
+                      icon: <VsIconAiVideo />,
+                    },
+                    {
+                      title: 'Music Video',
+                      desc: 'Turn sound into a visual story.',
+                      img: '/assets/showcase/music-singer.jpg',
+                      action: () => setActiveTab('viral-music'),
+                      icon: <VsIconViralMusic />,
+                    },
+                    {
+                      title: 'Face Swap',
+                      desc: 'Instant face replacement for your video clips.',
+                      img: '/assets/avatars/elena.jpg',
+                      action: () => setActiveTab('face-swap'),
+                      icon: <VsIconFaceSwap />,
+                    },
+                  ].map((item) => (
+                    <button
+                      key={item.title}
+                      type="button"
+                      onClick={item.action}
+                      className="vs-card vs-card-interactive"
+                      style={{
+                        height: 205,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        padding: 18,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <img
+                        src={item.img}
+                        alt={item.title}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.52 }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          background: 'linear-gradient(180deg, rgba(10,11,16,0.18) 0%, rgba(10,11,16,0.92) 100%)',
+                        }}
+                      />
+                      <span
+                        style={{
+                          position: 'relative',
+                          width: 34,
+                          height: 34,
+                          borderRadius: 9,
+                          background: 'rgba(255,255,255,0.12)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {item.icon}
+                      </span>
+                      <div style={{ position: 'relative' }}>
+                        <div style={{ fontWeight: 700, fontSize: '1.06rem', marginBottom: 2 }}>{item.title}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.72)' }}>{item.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="vs-underline-tabs" style={{ marginBottom: 20 }}>
+                  {[
+                    { id: 'all', label: 'All' },
+                    { id: 'video', label: 'For videos' },
+                    { id: 'image', label: 'For images' },
+                    { id: 'audio', label: 'For audio' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`vs-underline-tab ${toolsCategoryTab === t.id ? 'active' : ''}`}
+                      onClick={() => setToolsCategoryTab(t.id as typeof toolsCategoryTab)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="vs-grid-3">
+                  {CREATOR_TOOLS.filter((tool) => {
+                    if (toolsCategoryTab === 'all') return true;
+                    if (toolsCategoryTab === 'video') return tool.category === 'video' || tool.category === 'avatar';
+                    if (toolsCategoryTab === 'audio') return tool.category === 'voice';
+                    return tool.category === 'image';
+                  }).map((tool) => (
+                    <button
+                      key={tool.slug}
+                      type="button"
+                      onClick={() => {
+                        if (tool.studioSubTool) {
+                          setActiveInlineSubTool(tool.studioSubTool);
+                        } else {
+                          setActiveTab(tool.studioTab as SidebarTabId);
+                        }
+                      }}
+                      className="vs-card vs-card-interactive"
+                      style={{
+                        padding: '18px 20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 14,
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 10,
+                          background: '#1a1c28',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <VsIconTools />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{tool.titleEn}</span>
+                          {tool.badge && <span className="vs-tag-duet">{tool.badge}</span>}
+                        </div>
+                        <div style={{ fontSize: '0.77rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                          {tool.descEn}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 9: LIBRARY
+            ========================================================= */}
+        {activeTab === 'library' && (
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+              <h2 style={{ fontSize: '1.45rem', fontWeight: 800 }}>Library</h2>
+              <button type="button" className="vs-btn vs-btn-primary vs-btn-sm" onClick={() => setActiveTab('ai-video')}>
+                + New Video
+              </button>
+            </div>
+
+            {projects.length === 0 ? (
+              <div className="vs-card" style={{ padding: '72px 24px', textAlign: 'center' }}>
+                <VisionStoryPrismLogo size={42} boxed={false} />
+                <div style={{ fontWeight: 700, marginTop: 14, marginBottom: 6 }}>No creations yet</div>
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginBottom: 18 }}>
+                  Videos you generate in AI Video, AI Agent, Viral Music, Podcast, or Face Swap appear here automatically.
+                </p>
+                <button type="button" className="vs-btn vs-btn-primary vs-btn-sm" onClick={() => setActiveTab('ai-video')}>
+                  Create First Video
+                </button>
+              </div>
+            ) : (
+              <div className="vs-grid-3">
+                {projects.map((proj) => {
+                  const vidUrl = videoBlobMap[proj.id] || proj.videoDataUrl;
+                  return (
+                    <div key={proj.id} className="vs-card" style={{ overflow: 'hidden' }}>
+                      <div style={{ position: 'relative', height: 195, background: '#090a10' }}>
+                        {vidUrl ? (
+                          <video
+                            src={vidUrl}
+                            poster={proj.avatarImage}
+                            controls
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <img src={proj.avatarImage} alt={proj.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        )}
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.86rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {proj.title}
+                          </div>
+                          <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                            {proj.resolution} · {proj.aspectRatio} · {proj.durationSec}s
+                          </div>
+                        </div>
+                        {vidUrl && (
+                          <a
+                            href={vidUrl}
+                            download={`${proj.title.replace(/\s+/g, '_')}.webm`}
+                            className="vs-btn vs-btn-secondary vs-btn-sm"
+                          >
+                            <Download size={13} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 10: PRICING IN STUDIO (Exact 1:1 09_pricing.png)
+            ========================================================= */}
+        {activeTab === 'pricing' && (
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div style={{ fontWeight: 700, fontSize: '1.12rem', marginBottom: 18 }}>Choose Your Plan</div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 42 }}>
+              <div style={{ flex: 1 }} />
+              <div className="vs-mode-pill-group">
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${studioPricingCycle === 'monthly' ? 'active' : ''}`}
+                  onClick={() => setStudioPricingCycle('monthly')}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  className={`vs-mode-pill-btn ${studioPricingCycle === 'annual' ? 'active' : ''}`}
+                  onClick={() => setStudioPricingCycle('annual')}
+                >
+                  <span>Annually</span>
+                  <span style={{ color: '#f43f5e', fontSize: '0.74rem', fontWeight: 700 }}>save 2 months</span>
+                </button>
+              </div>
+              <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                <Link href="/pricing" className="vs-btn vs-btn-secondary vs-btn-sm">
+                  Enterprise
+                </Link>
+              </div>
+            </div>
+
+            {/* 3 Paid Plan Cards (Pro, Advanced, Ultra) matching 09_pricing.png */}
+            <div className="vs-grid-3">
+              {PRICING_PLANS.filter((p) => p.id !== 'free').map((plan) => {
+                const price = studioPricingCycle === 'annual' ? plan.annualMonthlyEquivalent : plan.monthlyPrice;
+                return (
+                  <div key={plan.id} className={`vs-plan-card ${plan.popular ? 'popular' : ''}`}>
+                    {plan.popular && <div className="vs-plan-popular-ribbon">Most Popular</div>}
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 14 }}>{plan.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 20 }}>
+                      <span style={{ fontSize: '2.4rem', fontWeight: 800 }}>${price}</span>
+                      <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>/mo</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePlanUpgrade(plan)}
+                      className="vs-btn vs-btn-white"
+                      style={{ width: '100%', height: 42, marginBottom: 14 }}
+                    >
+                      {user.plan === plan.id ? 'Current Plan ✓' : 'Subscribe'}
+                    </button>
+                    <div
+                      style={{
+                        height: 38,
+                        borderRadius: 9,
+                        background: '#1c1e29',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0 14px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        marginBottom: 20,
+                      }}
+                    >
+                      {plan.monthlyCredits} credits
+                    </div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: 8 }}>Video generation:</div>
+                    <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+                      {plan.videoGenFeaturesEn.map((f) => (
+                        <li key={f} style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.85)', display: 'flex', gap: 8 }}>
+                          <span style={{ color: '#605CF7', fontWeight: 800 }}>✓</span> {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: 8 }}>{plan.plusTitleEn}</div>
+                    <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {plan.plusFeaturesEn.map((f) => (
+                        <li key={f} style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.72)', display: 'flex', gap: 8 }}>
+                          <span style={{ color: '#605CF7', fontWeight: 800 }}>✓</span> {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 11: BILLING (Exact 1:1 u10_billing.png)
+            ========================================================= */}
+        {activeTab === 'billing' && (
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, marginBottom: 16 }}>Billing</h2>
+
+            <div className="vs-underline-tabs" style={{ marginBottom: 20 }}>
+              <button
+                type="button"
+                className={`vs-underline-tab ${billingSubTab === 'history' ? 'active' : ''}`}
+                onClick={() => setBillingSubTab('history')}
+              >
+                Billing History
+              </button>
+              <button
+                type="button"
+                className={`vs-underline-tab ${billingSubTab === 'usage' ? 'active' : ''}`}
+                onClick={() => setBillingSubTab('usage')}
+              >
+                Credit Usage
+              </button>
+            </div>
+
+            {billingSubTab === 'history' ? (
+              <div
+                className="vs-card"
+                style={{
+                  minHeight: 480,
+                  padding: '22px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    Paid Bills and Receipts
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerModalOpen(true)}
+                    className="vs-btn vs-btn-secondary vs-btn-sm"
+                  >
+                    Manage Billing Info
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: 0.38, margin: 'auto 0' }}>
+                  <VisionStoryPrismLogo size={54} boxed={false} />
+                </div>
+              </div>
+            ) : (
+              <div className="vs-card" style={{ padding: 20 }}>
+                {ledger.map((tx) => (
+                  <div
+                    key={tx.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '12px 8px',
+                      borderBottom: '1px solid var(--border-hairline)',
+                      fontSize: '0.84rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{tx.description}</div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        {new Date(tx.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <span style={{ fontWeight: 700, color: tx.amount >= 0 ? 'var(--accent-teal)' : '#a59eff' }}>
+                      {tx.amount >= 0 ? `+${tx.amount}` : tx.amount} credits
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 12: API IN STUDIO
+            ========================================================= */}
+        {activeTab === 'api' && (
+          <div style={{ maxWidth: 960, margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: '1.45rem', fontWeight: 800 }}>VisionStory OpenAPI Keys</h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Authenticate against POST /api/v1/video, Python SDK, VisionStory CLI, and MCP Server.
+                </p>
+              </div>
+              <Link href="/openapi" className="vs-btn vs-btn-secondary vs-btn-sm">
+                Full API Docs ↗
+              </Link>
+            </div>
+
+            <form onSubmit={handleCreateStudioApiKey} className="vs-card" style={{ padding: 20, display: 'flex', gap: 10, marginBottom: 18 }}>
+              <input
+                type="text"
+                className="vs-input"
+                value={newApiKeyName}
+                onChange={(e) => setNewApiKeyName(e.target.value)}
+                placeholder="Key label (e.g., CI Pipeline)"
+              />
+              <button type="submit" className="vs-btn vs-btn-primary vs-btn-sm">
+                + Create Key
+              </button>
+            </form>
+
+            {freshRawApiKey && (
+              <div
+                className="vs-card"
+                style={{
+                  padding: 16,
+                  marginBottom: 18,
+                  borderColor: 'var(--accent-teal)',
+                  fontFamily: 'var(--font-mono), monospace',
+                  fontSize: '0.83rem',
+                }}
+              >
+                New API Key: <strong>{freshRawApiKey}</strong>
+              </div>
+            )}
+
+            <div className="vs-card" style={{ padding: 18 }}>
+              {apiKeys.map((k) => (
+                <div
+                  key={k.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 6px',
+                    borderBottom: '1px solid var(--border-hairline)',
+                    fontSize: '0.84rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 650 }}>{k.name}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono), monospace' }}>
+                      {k.rawPreview}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="vs-btn-ghost"
+                    onClick={async () => {
+                      await fetch('/api/state', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'revoke_api_key', keyId: k.id }),
+                      });
+                      await refreshState();
+                    }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Floating Bottom-Right Headset Support Button matching u01_ai_video.png */}
+      <button
+        type="button"
+        className="vs-support-fab"
+        onClick={() => showToast('VisionStory Support: feedback@visionstory.ai · All engines online!')}
+        title="Support & Feedback"
+      >
+        <Headphones size={18} />
+      </button>
+
+      {/* Rendered Video Playback Modal */}
+      {activeVideoModal && (
+        <div className="vs-modal-backdrop" onClick={() => setActiveVideoModal(null)}>
+          <div className="vs-modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h3 className="vs-h3">{activeVideoModal.title}</h3>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  {activeVideoModal.resolution} · {activeVideoModal.durationSec}s · WebM Stereo
+                </p>
+              </div>
+              <button type="button" className="vs-btn-ghost" onClick={() => setActiveVideoModal(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <video
+              src={activeVideoModal.videoUrl}
+              controls
+              autoPlay
+              style={{ width: '100%', maxHeight: 440, borderRadius: 14, background: '#000', marginBottom: 16 }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                className="vs-btn vs-btn-secondary vs-btn-sm"
+                onClick={() => {
+                  setActiveVideoModal(null);
+                  setActiveTab('library');
+                }}
+              >
+                View in Library
+              </button>
+              <a
+                href={activeVideoModal.videoUrl}
+                download={`${activeVideoModal.title.replace(/\s+/g, '_')}.webm`}
+                className="vs-btn vs-btn-primary vs-btn-sm"
+              >
+                <Download size={14} /> Download Video (.webm)
+              </a>
+            </div>
+          </div>
         </div>
-      </aside>
+      )}
     </div>
   );
 }

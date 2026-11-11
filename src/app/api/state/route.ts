@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
         defaultVoiceId: 'voice_alloy',
         languages: 88,
         styleTag: 'Custom V4',
-        accentColor: '#f26430',
+        accentColor: '#625df5',
       };
       db.customAvatars.unshift(newAvatar);
       writeDB(db);

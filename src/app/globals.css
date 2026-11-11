@@ -1,35 +1,34 @@
 :root {
-  --bg-canvas: hsl(222, 20%, 6%);
-  --bg-elevated: hsl(222, 18%, 9.5%);
-  --bg-surface: hsl(222, 16%, 12.5%);
-  --bg-surface-hover: hsl(222, 15%, 15.5%);
-  --bg-subtle: hsl(222, 14%, 18%);
-  --surface-glass: hsla(222, 18%, 10%, 0.84);
+  --bg-canvas: #000000;
+  --bg-elevated: #0b0c10;
+  --bg-surface: #111218;
+  --bg-surface-2: #171922;
+  --bg-surface-hover: #1e202c;
+  --bg-sidebar: #0c0d12;
 
-  --border-hairline: hsla(215, 20%, 92%, 0.08);
-  --border-strong: hsla(215, 20%, 92%, 0.15);
+  --border-hairline: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-focus: #625df5;
 
-  --text-primary: hsl(40, 25%, 97%);
-  --text-secondary: hsl(218, 13%, 72%);
-  --text-muted: hsl(218, 11%, 52%);
+  --text-primary: #ffffff;
+  --text-secondary: #a1a5b7;
+  --text-muted: #6c7082;
 
-  --accent-brand: hsl(16, 88%, 56%);
-  --accent-brand-hover: hsl(16, 90%, 62%);
-  --accent-brand-soft: hsla(16, 88%, 56%, 0.14);
+  --accent-brand: #625df5;
+  --accent-brand-hover: #736ff8;
+  --accent-brand-soft: rgba(98, 93, 245, 0.16);
+  --accent-lavender: #b7afff;
+  --accent-teal: #2dd4bf;
+  --accent-amber: #f59e0b;
 
-  --accent-teal: hsl(168, 76%, 44%);
-  --accent-teal-soft: hsla(168, 76%, 44%, 0.14);
-
-  --accent-amber: hsl(39, 92%, 56%);
-  --accent-amber-soft: hsla(39, 92%, 56%, 0.14);
-
-  --shadow-soft: 0 12px 32px -8px rgba(0, 0, 0, 0.52);
-  --shadow-elevated: 0 24px 60px -12px rgba(0, 0, 0, 0.68);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
   --radius-xl: 24px;
-  --container-max: 1240px;
+  --radius-2xl: 32px;
+  --radius-pill: 999px;
+
+  --shadow-elevated: 0 24px 64px rgba(0, 0, 0, 0.65);
 }
 
 *,
@@ -41,29 +40,39 @@
 }
 
 html {
-  scroll-behavior: smooth;
   color-scheme: dark;
+  scroll-behavior: smooth;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 body {
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
   background-color: var(--bg-canvas);
-  background-image: radial-gradient(
-    ellipse 90% 50% at 50% -10%,
-    hsla(16, 70%, 38%, 0.11),
-    transparent 65%
-  );
   color: var(--text-primary);
-  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.6;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
   overflow-x: hidden;
-}
-
-code,
-pre,
-.mono {
-  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 a {
@@ -73,106 +82,101 @@ a {
 
 button,
 input,
-textarea,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
 
 button {
   cursor: pointer;
-  border: none;
   background: none;
+  border: none;
 }
 
-/* Layout Containers */
+/* =========================================================
+   CONTAINER & TYPOGRAPHY
+   ========================================================= */
 .vs-container {
   width: 100%;
-  max-width: var(--container-max);
+  max-width: 1280px;
   margin: 0 auto;
   padding: 0 24px;
 }
 
-.vs-section {
-  padding: 92px 0;
-  border-bottom: 1px solid var(--border-hairline);
-}
-
-.vs-section-compact {
-  padding: 64px 0;
-  border-bottom: 1px solid var(--border-hairline);
-}
-
-/* Typography Hierarchy */
-.vs-eyebrow {
-  display: inline-block;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--accent-brand);
-  margin-bottom: 12px;
-}
-
 .vs-h1 {
-  font-size: clamp(2.4rem, 5vw, 4.15rem);
-  font-weight: 700;
-  line-height: 1.07;
-  letter-spacing: -0.035em;
-  color: var(--text-primary);
+  font-size: clamp(2.4rem, 4.6vw, 3.85rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
 }
 
 .vs-h2 {
-  font-size: clamp(1.85rem, 3.4vw, 2.75rem);
-  font-weight: 700;
+  font-size: clamp(1.85rem, 3.4vw, 2.85rem);
+  font-weight: 800;
   line-height: 1.14;
-  letter-spacing: -0.028em;
-  color: var(--text-primary);
+  letter-spacing: -0.025em;
 }
 
 .vs-h3 {
-  font-size: 1.22rem;
-  font-weight: 650;
+  font-size: 1.2rem;
+  font-weight: 700;
   line-height: 1.3;
   letter-spacing: -0.015em;
-  color: var(--text-primary);
 }
 
 .vs-lead {
-  font-size: clamp(1.04rem, 1.4vw, 1.18rem);
+  font-size: 1.04rem;
   color: var(--text-secondary);
-  max-width: 66ch;
-  line-height: 1.62;
+  line-height: 1.6;
 }
 
-/* Buttons */
+.vs-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: var(--radius-pill);
+  background: rgba(12, 13, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #a59eff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+/* =========================================================
+   BUTTONS & PILLS (1:1 VisionStory Periwinkle #625df5)
+   ========================================================= */
 .vs-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 11px 20px;
-  border-radius: var(--radius-md);
-  font-size: 0.93rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+  border-radius: var(--radius-pill);
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 650;
+  transition: all 0.16s ease;
   white-space: nowrap;
 }
 
-.vs-btn:active {
-  transform: translateY(1px);
+.vs-btn-sm {
+  padding: 7px 15px;
+  font-size: 0.82rem;
 }
 
-.vs-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.vs-btn-lg {
+  padding: 13px 26px;
+  font-size: 0.95rem;
 }
 
 .vs-btn-primary {
   background: var(--accent-brand);
   color: #ffffff;
-  box-shadow: 0 6px 20px -4px hsla(16, 88%, 50%, 0.42);
+  box-shadow: 0 6px 22px rgba(98, 93, 245, 0.35);
 }
 
 .vs-btn-primary:hover:not(:disabled) {
@@ -180,154 +184,118 @@ button {
   transform: translateY(-1px);
 }
 
-.vs-btn-secondary {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border: 1px solid var(--border-strong);
+.vs-btn-primary:disabled {
+  background: rgba(98, 93, 245, 0.42);
+  color: rgba(255, 255, 255, 0.55);
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
-.vs-btn-secondary:hover:not(:disabled) {
-  background: var(--bg-surface-hover);
+.vs-btn-white {
+  background: #ffffff;
+  color: #090a0f;
+  font-weight: 700;
+}
+
+.vs-btn-white:hover {
+  background: #eef0f8;
+}
+
+.vs-btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.vs-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .vs-btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
-  padding: 8px 13px;
-  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 11px;
+  border-radius: var(--radius-pill);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
 .vs-btn-ghost:hover {
-  color: var(--text-primary);
-  background: hsla(0, 0%, 100%, 0.05);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.vs-btn-lg {
-  padding: 14px 26px;
-  font-size: 1rem;
-  border-radius: 14px;
-}
-
-.vs-btn-sm {
-  padding: 7px 13px;
-  font-size: 0.82rem;
-  border-radius: var(--radius-sm);
-}
-
-/* Surface Cards with Tactile Depth */
-.vs-card {
-  background: linear-gradient(180deg, hsla(222, 16%, 14%, 0.9), hsla(222, 18%, 10%, 0.95));
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-soft), inset 0 1px 0 hsla(0, 0%, 100%, 0.05);
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.vs-card-interactive:hover {
-  transform: translateY(-2px);
-  border-color: var(--border-strong);
-}
-
-/* Badges */
 .vs-tag {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.74rem;
   font-weight: 600;
-  background: hsla(0, 0%, 100%, 0.06);
-  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border-hairline);
+  color: var(--text-secondary);
 }
 
 .vs-tag-brand {
   background: var(--accent-brand-soft);
-  color: hsl(16, 95%, 72%);
-  border-color: hsla(16, 88%, 56%, 0.24);
+  color: #b5b0ff;
+  border-color: rgba(98, 93, 245, 0.35);
 }
 
-.vs-tag-teal {
-  background: var(--accent-teal-soft);
-  color: hsl(168, 80%, 65%);
-  border-color: hsla(168, 76%, 44%, 0.24);
+.vs-tag-duet {
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.67rem;
+  font-weight: 700;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
 }
 
-/* Form Controls */
-.vs-input,
-.vs-textarea,
-.vs-select {
-  width: 100%;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  padding: 11px 14px;
-  color: var(--text-primary);
-  font-size: 0.93rem;
-  transition: border-color 0.16s ease, background-color 0.16s ease;
-}
-
-.vs-input:focus,
-.vs-textarea:focus,
-.vs-select:focus {
-  outline: none;
-  border-color: var(--accent-brand);
-  background: var(--bg-surface);
-}
-
-.vs-textarea {
-  resize: vertical;
-  min-height: 108px;
-  line-height: 1.55;
-}
-
-/* Sticky Navigation Header */
-.vs-header {
+/* =========================================================
+   MARKETING FLOATING PILL NAVBAR (1:1 www.visionstory.ai)
+   ========================================================= */
+.vs-mkt-header-wrap {
   position: sticky;
   top: 0;
-  z-index: 60;
-  height: 68px;
-  background: var(--surface-glass);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid var(--border-hairline);
+  z-index: 90;
+  padding: 12px 18px 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 100%);
 }
 
-.vs-header-inner {
-  height: 100%;
+.vs-mkt-header {
+  max-width: 1380px;
+  margin: 0 auto;
+  height: 58px;
+  padding: 0 14px 0 20px;
+  border-radius: var(--radius-pill);
+  background: rgba(8, 9, 13, 0.92);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.11);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
 }
 
 .vs-brand {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-weight: 750;
-  font-size: 1.16rem;
-  letter-spacing: -0.025em;
-}
-
-.vs-brand-mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent-brand), hsl(28, 92%, 56%));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
   font-weight: 800;
-  font-size: 0.95rem;
-  box-shadow: 0 4px 14px hsla(16, 88%, 50%, 0.4);
+  font-size: 1.08rem;
+  letter-spacing: -0.02em;
+  color: #ffffff;
 }
 
 .vs-nav-links {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .vs-nav-item {
@@ -338,162 +306,296 @@ button {
   position: absolute;
   top: calc(100% + 10px);
   left: 0;
-  width: 680px;
-  background: hsl(222, 18%, 10%);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  padding: 20px;
+  width: 600px;
+  background: #0d0e14;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 18px;
   box-shadow: var(--shadow-elevated);
   display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 18px;
-  z-index: 80;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+  z-index: 120;
 }
 
 .vs-dropdown-link {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   padding: 9px 11px;
-  border-radius: var(--radius-sm);
-  transition: background-color 0.14s ease;
+  border-radius: 10px;
+  transition: background 0.14s ease;
 }
 
 .vs-dropdown-link:hover {
-  background: hsla(0, 0%, 100%, 0.06);
+  background: rgba(255, 255, 255, 0.06);
 }
 
-/* Responsive Grids */
-.vs-grid-2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px;
+/* =========================================================
+   MARKETING HERO & FEATURE SECTIONS (1:1 www.visionstory.ai)
+   ========================================================= */
+.vs-hero-stage {
+  max-width: 1380px;
+  margin: 6px auto 28px;
+  min-height: 670px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 48px 24px 38px;
+  background: #040406;
 }
 
-.vs-grid-3 {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
+.vs-hero-bg-media {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
 }
 
-.vs-grid-4 {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
+.vs-hero-bg-media img {
+  width: min(880px, 92%);
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+  mask-image: radial-gradient(ellipse 62% 76% at 50% 42%, #000 38%, transparent 88%);
+  -webkit-mask-image: radial-gradient(ellipse 62% 76% at 50% 42%, #000 38%, transparent 88%);
+  opacity: 0.92;
 }
 
-/* Comparison Table */
-.vs-table-wrap {
+.vs-hero-vignette {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.08) 0%,
+    rgba(0, 0, 0, 0.28) 44%,
+    rgba(0, 0, 0, 0.88) 78%,
+    #000000 100%
+  );
+  pointer-events: none;
+}
+
+.vs-hero-tint-word {
+  background: linear-gradient(90deg, #ffffff 0%, #c6bfff 45%, #9f96ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.vs-section-shell {
+  max-width: 1280px;
+  margin: 28px auto;
+  border-radius: 36px;
+  padding: 68px 52px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.vs-section-shell-indigo {
+  background: radial-gradient(circle at 22% 0%, #2b2768 0%, #13122c 48%, #07070c 100%);
+}
+
+.vs-section-shell-slate {
+  background: radial-gradient(circle at 80% 0%, #1f2737 0%, #10121a 52%, #07080c 100%);
+}
+
+.vs-light-bento-card {
+  background: linear-gradient(180deg, #eef0ff 0%, #dff7f0 100%);
+  color: #0e111a;
+  border-radius: 24px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
+}
+
+.vs-light-bento-media {
   width: 100%;
-  overflow-x: auto;
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
+  height: 220px;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(135deg, #dadfff 0%, #eef2ff 55%, #c7d2fe 100%);
 }
 
-.vs-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.vs-table th,
-.vs-table td {
-  padding: 15px 20px;
-  border-bottom: 1px solid var(--border-hairline);
-  font-size: 0.92rem;
-}
-
-.vs-table th {
-  font-weight: 650;
-  color: var(--text-secondary);
-  background: hsla(0, 0%, 100%, 0.025);
-}
-
-.vs-table tr:last-child td {
-  border-bottom: none;
-}
-
-/* Studio Workspace Layout */
-.vs-studio-shell {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 360px;
-  min-height: calc(100vh - 68px);
-  background: var(--bg-canvas);
+/* =========================================================
+   STUDIO APP SHELL (1:1 app.visionstory.ai)
+   ========================================================= */
+.vs-studio-app {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 58% 34% at 54% 0%, rgba(72, 65, 210, 0.22) 0%, rgba(18, 120, 145, 0.09) 42%, transparent 78%),
+    #000000;
+  display: flex;
+  position: relative;
 }
 
 .vs-studio-sidebar {
-  border-right: 1px solid var(--border-hairline);
-  background: var(--bg-elevated);
-  padding: 16px 12px;
+  width: 212px;
+  flex-shrink: 0;
+  margin: 12px 0 12px 12px;
+  height: calc(100vh - 24px);
+  position: sticky;
+  top: 12px;
+  background: var(--bg-sidebar);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  padding: 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  justify-content: space-between;
+  z-index: 40;
+  transition: width 0.2s ease;
 }
 
-.vs-studio-tab-btn {
+.vs-studio-sidebar.collapsed {
+  width: 64px;
+}
+
+.vs-sidebar-nav-btn {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 13px;
-  border-radius: 11px;
-  font-size: 0.9rem;
-  font-weight: 560;
-  color: var(--text-secondary);
+  gap: 11px;
+  font-size: 0.86rem;
+  font-weight: 540;
+  color: rgba(255, 255, 255, 0.72);
+  transition: all 0.14s ease;
   text-align: left;
-  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.vs-studio-tab-btn:hover {
-  background: hsla(0, 0%, 100%, 0.05);
-  color: var(--text-primary);
+.vs-sidebar-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
 }
 
-.vs-studio-tab-btn.active {
-  background: var(--accent-brand-soft);
+.vs-sidebar-nav-btn.active {
+  background: #20212b;
   color: #ffffff;
   font-weight: 650;
 }
 
 .vs-studio-main {
-  padding: 24px 28px 48px;
-  overflow-y: auto;
+  flex: 1;
+  min-width: 0;
+  padding: 16px 32px 72px;
+  position: relative;
 }
 
-.vs-studio-right {
-  border-left: 1px solid var(--border-hairline);
-  background: var(--bg-elevated);
-  padding: 20px 18px;
-  overflow-y: auto;
+.vs-studio-topbar {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
-.vs-avatar-grid {
+.vs-studio-title {
+  text-align: center;
+  font-size: clamp(1.9rem, 3vw, 2.55rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin: 6px auto 18px;
+  max-width: 720px;
+  line-height: 1.16;
+}
+
+/* Segmented Mode Pill Toggle (Presenter | Cinematic, Solo | Duet, etc.) */
+.vs-mode-pill-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vs-mode-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.62);
+  transition: all 0.15s ease;
+}
+
+.vs-mode-pill-btn.active {
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
+}
+
+/* AI Video 2-Column Studio Card (1:1 u01_ai_video.png) */
+.vs-aivideo-card {
+  max-width: 1120px;
+  margin: 0 auto;
+  background: #101117;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 18px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 12px;
+  grid-template-columns: 500px 1fr;
+  gap: 20px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.vs-upload-gen-btn {
+  position: relative;
+  overflow: hidden;
+  height: 46px;
+  border-radius: 12px;
+  background: #181a23;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #ffffff;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.vs-upload-gen-btn:hover {
+  background: #202330;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.vs-avatar-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
 .vs-avatar-tile {
   position: relative;
-  border-radius: 13px;
+  aspect-ratio: 1 / 1.05;
+  border-radius: 12px;
   overflow: hidden;
-  aspect-ratio: 1 / 1;
   border: 2px solid transparent;
-  background: var(--bg-surface);
+  background: #181922;
   cursor: pointer;
-  transition: transform 0.16s ease, border-color 0.16s ease;
-}
-
-.vs-avatar-tile:hover {
-  transform: translateY(-2px);
-}
-
-.vs-avatar-tile.selected {
-  border-color: var(--accent-brand);
+  transition: transform 0.14s ease, border-color 0.14s ease;
 }
 
 .vs-avatar-tile img {
@@ -503,51 +605,226 @@ button {
   display: block;
 }
 
-.vs-avatar-tile-label {
+.vs-avatar-tile.selected {
+  border-color: #6c67ff;
+  box-shadow: 0 0 0 2px rgba(108, 103, 255, 0.28);
+}
+
+.vs-avatar-tile-badge {
   position: absolute;
-  inset: auto 0 0 0;
-  padding: 18px 8px 7px;
-  background: linear-gradient(transparent, rgba(6, 8, 13, 0.9));
-  font-size: 0.76rem;
+  bottom: 6px;
+  left: 6px;
+  right: 6px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(6px);
+  font-size: 0.68rem;
   font-weight: 600;
-  color: #fff;
-  text-overflow: ellipsis;
-  overflow: hidden;
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Segmented Controls */
-.vs-segmented {
+.vs-avatar-tile:hover .vs-avatar-tile-badge {
+  opacity: 1;
+}
+
+/* Script / Audio / Music Underline Tabs */
+.vs-underline-tabs {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vs-underline-tab {
   display: inline-flex;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-hairline);
-  padding: 4px;
-  border-radius: 11px;
-  gap: 4px;
-}
-
-.vs-segmented-btn {
-  padding: 7px 14px;
-  border-radius: 8px;
-  font-size: 0.84rem;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px 12px;
+  font-size: 0.88rem;
   font-weight: 600;
-  color: var(--text-secondary);
-  transition: background-color 0.14s ease, color 0.14s ease;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease;
 }
 
-.vs-segmented-btn.active {
-  background: var(--bg-surface-hover);
-  color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+.vs-underline-tab.active {
+  color: #ffffff;
+  border-bottom-color: var(--accent-brand);
 }
 
-/* Modal Backdrop */
+/* Centered Composer Card (AI Agent, Seedance 2.5, Podcast, Presentation, Viral Music) */
+.vs-composer-card {
+  max-width: 760px;
+  margin: 0 auto;
+  background: rgba(20, 21, 30, 0.88);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 18px 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48);
+}
+
+.vs-circle-submit {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-brand);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.vs-circle-submit:hover:not(:disabled) {
+  background: var(--accent-brand-hover);
+  transform: scale(1.05);
+}
+
+.vs-circle-submit:disabled {
+  background: rgba(98, 93, 245, 0.35);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+}
+
+/* Control Pills & Inputs */
+.vs-ctrl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: #181a24;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.8rem;
+  font-weight: 560;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.vs-ctrl-pill:hover {
+  background: #202330;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.vs-input,
+.vs-select,
+.vs-textarea {
+  width: 100%;
+  background: #151720;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 13px;
+  color: #ffffff;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.vs-input:focus,
+.vs-select:focus,
+.vs-textarea:focus {
+  border-color: var(--accent-brand);
+}
+
+.vs-clean-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: #ffffff;
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
+.vs-clean-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.34);
+}
+
+/* Cards & Grids */
+.vs-card {
+  background: #101118;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+}
+
+.vs-card-interactive {
+  transition: border-color 0.16s ease, transform 0.16s ease, background 0.16s ease;
+}
+
+.vs-card-interactive:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: #151722;
+  transform: translateY(-2px);
+}
+
+.vs-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.vs-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.vs-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* Pricing Cards (1:1 marketing_pricing_tall.png & 09_pricing.png) */
+.vs-plan-card {
+  background: #101118;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 28px 22px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.vs-plan-card.popular {
+  border-color: #625df5;
+  margin-top: -28px;
+  padding-top: 52px;
+  overflow: hidden;
+}
+
+.vs-plan-popular-ribbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: #625df5;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Modals (1:1 app.visionstory.ai Log In dialog) */
 .vs-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 120;
-  background: rgba(5, 7, 12, 0.76);
-  backdrop-filter: blur(8px);
+  z-index: 160;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -556,35 +833,86 @@ button {
 
 .vs-modal {
   width: 100%;
-  max-width: 500px;
-  background: hsl(222, 18%, 10.5%);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xl);
-  padding: 28px;
+  max-width: 400px;
+  background: #181920;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  padding: 26px 24px;
   box-shadow: var(--shadow-elevated);
-  max-height: 90vh;
-  overflow-y: auto;
+}
+
+/* Switch Toggle */
+.vs-switch {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  transition: background 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+}
+
+.vs-switch.on {
+  background: var(--accent-brand);
+}
+
+.vs-switch-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.15s ease;
+}
+
+.vs-switch.on .vs-switch-thumb {
+  transform: translateX(16px);
+}
+
+/* Floating Support Button (Bottom-right of Studio) */
+.vs-support-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #1a1b24;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.vs-support-fab:hover {
+  background: #252736;
+  color: #ffffff;
 }
 
 /* Footer */
 .vs-footer {
-  background: hsl(222, 22%, 5%);
-  padding: 72px 0 44px;
-  border-top: 1px solid var(--border-hairline);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 64px 0 40px;
+  margin-top: 72px;
+  background: #000000;
 }
 
 .vs-footer-cols {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 24px;
-  margin-top: 44px;
+  margin-top: 36px;
 }
 
 .vs-footer-col h4 {
   font-size: 0.84rem;
   font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 14px;
+  color: #ffffff;
+  margin-bottom: 12px;
 }
 
 .vs-footer-col ul {
@@ -595,24 +923,19 @@ button {
 }
 
 .vs-footer-col a {
-  font-size: 0.83rem;
+  font-size: 0.81rem;
   color: var(--text-muted);
-  transition: color 0.15s ease;
+  transition: color 0.14s ease;
 }
 
 .vs-footer-col a:hover {
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
-/* Responsive Breakpoints */
+/* Responsive */
 @media (max-width: 1120px) {
-  .vs-studio-shell {
-    grid-template-columns: 190px minmax(0, 1fr);
-  }
-  .vs-studio-right {
-    grid-column: 1 / -1;
-    border-left: none;
-    border-top: 1px solid var(--border-hairline);
+  .vs-aivideo-card {
+    grid-template-columns: 1fr;
   }
   .vs-grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -620,35 +943,30 @@ button {
   .vs-footer-cols {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .vs-section-shell {
+    padding: 40px 24px;
+  }
 }
 
 @media (max-width: 820px) {
   .vs-nav-links {
     display: none;
   }
+  .vs-studio-app {
+    flex-direction: column;
+  }
+  .vs-studio-sidebar {
+    width: calc(100% - 24px);
+    height: auto;
+    position: static;
+    margin: 12px;
+  }
   .vs-grid-2,
   .vs-grid-3,
   .vs-grid-4 {
     grid-template-columns: 1fr;
   }
-  .vs-studio-shell {
-    grid-template-columns: 1fr;
-  }
-  .vs-studio-sidebar {
-    flex-direction: row;
-    overflow-x: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border-hairline);
-    padding: 10px 14px;
-  }
-  .vs-studio-tab-btn {
-    width: auto;
-    white-space: nowrap;
-  }
   .vs-footer-cols {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .vs-section {
-    padding: 60px 0;
   }
 }

@@ -486,7 +486,7 @@ export async function renderStudioVideo(options: RenderVideoOptions): Promise<{
       ctx.fill();
       for (let i = 0; i < 9; i++) {
         const hBar = 5 + 16 * Math.abs(Math.sin(tSec * 14 + i * 0.7)) * speechEnergy;
-        ctx.fillStyle = '#f26430';
+        ctx.fillStyle = '#625df5';
         ctx.fillRect(waveX + 14 + i * 9.5, waveY + 17 - hBar / 2, 5, hBar);
       }
 

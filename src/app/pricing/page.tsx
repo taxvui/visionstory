@@ -1,345 +1,353 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check, ChevronDown, Coins, RefreshCw, Sparkles } from 'lucide-react';
-import { PRICING_PLANS } from '@/lib/catalog';
-import { calculateCredits, ResolutionOption } from '@/lib/credits';
+import Link from 'next/link';
+import { PRICING_PLANS, PricingPlan } from '@/lib/catalog';
 import { useVisionStory } from '@/components/VisionStoryProvider';
 import { Footer } from '@/components/Footer';
 
-const PRICING_FAQS = [
-  {
-    q: 'Can I start using VisionStory for free?',
-    a: 'Yes. Eligible new accounts receive 10 sign-up credits, plus a Weekly Visit Bonus in each week you visit — 4 credits on Free, 8 on Pro, 20 on Advanced, and 60 on Ultra.',
-  },
-  {
-    q: 'What are credits and how are they used?',
-    a: 'V-Character 4.0 Presenter video costs 1 credit per 4-second interval at 720p, with partial intervals rounded up. 1080p adds 0.5× base credits, 2K adds 2.5× base credits, and Green Screen adds 0.25× base credits, each rounded up separately.',
-  },
-  {
-    q: 'What happens to unused credits?',
-    a: 'Unused Subscription credits carry over up to 2× the renewing plan’s monthly-equivalent allowance while your subscription stays active. One-time purchased credit packs and sign-up bonus credits never expire.',
-  },
-  {
-    q: 'Can I switch between monthly and annual billing?',
-    a: 'Yes. Annual billing is priced at the equivalent of 10 monthly payments (giving you 2 months free), and the full year’s credits are allocated upfront.',
-  },
-  {
-    q: 'What is Auto Recharge?',
-    a: 'Auto Recharge automatically purchases your chosen permanent credit pack whenever your paid balance dips below your threshold. You can toggle it anytime below.',
-  },
-];
+function PurpleCheck() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+      <path d="M3.6 8.0L7.1 11.2L13.2 4.8" stroke="#605CF7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MatrixCell({ value }: { value: boolean | string }) {
+  if (typeof value === 'boolean') {
+    return value ? (
+      <span
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          background: '#625df5',
+          color: '#fff',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.68rem',
+          fontWeight: 800,
+        }}
+      >
+        ✓
+      </span>
+    ) : (
+      <span
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.22)',
+          color: '#0d0e14',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.7rem',
+          fontWeight: 900,
+        }}
+      >
+        ×
+      </span>
+    );
+  }
+  return <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.78)' }}>{value}</span>;
+}
 
 export default function PricingPage() {
-  const { locale, user, refreshState, showToast, setLedgerModalOpen } = useVisionStory();
-  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
-  const [calcSeconds, setCalcSeconds] = useState<number>(32);
-  const [calcRes, setCalcRes] = useState<ResolutionOption>('1080p');
-  const [calcGs, setCalcGs] = useState<boolean>(false);
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const { user, refreshState, showToast } = useVisionStory();
+  const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [ultraTier, setUltraTier] = useState<'1920' | '5760'>('1920');
 
-  const sampleBill = calculateCredits({
-    workflow: 'ai-video',
-    durationSec: calcSeconds,
-    resolution: calcRes,
-    greenScreen: calcGs,
-  });
-
-  const handleSubscribe = async (planId: 'free' | 'pro' | 'advanced' | 'ultra') => {
+  const handleSelectPlan = async (plan: PricingPlan) => {
     const res = await fetch('/api/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'upgrade_plan',
-        planId,
-        billingCycle: billing,
+        plan: plan.id,
+        billingCycle: cycle,
       }),
     });
     if (res.ok) {
       await refreshState();
-      showToast(
-        locale === 'vi'
-          ? `Đã kích hoạt gói ${planId.toUpperCase()} (${billing}) và cộng credits vào tài khoản!`
-          : `Activated ${planId.toUpperCase()} (${billing}) plan & issued subscription credits!`
-      );
+      showToast(`Activated ${plan.name} (${cycle}) plan on your account!`);
     }
   };
 
-  const handleToggleAutoRecharge = async () => {
-    const next = !user.autoRecharge;
-    await fetch('/api/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'toggle_auto_recharge', enabled: next }),
-    });
-    await refreshState();
-    showToast(next ? 'Enabled Auto Recharge (+100 credits below 10 cr)' : 'Disabled Auto Recharge');
-  };
-
   return (
-    <main>
-      <section className="vs-section" style={{ paddingTop: 64 }}>
-        <div className="vs-container">
-          <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 38px' }}>
-            <span className="vs-eyebrow">Simple, transparent pricing</span>
-            <h1 className="vs-h1" style={{ fontSize: 'clamp(2.2rem, 4.2vw, 3.4rem)', marginBottom: 14 }}>
-              {locale === 'vi' ? 'Bảng Giá Gói Cước AI Video' : 'AI Video Pricing Plans'}
-            </h1>
-            <p className="vs-lead" style={{ margin: '0 auto 24px' }}>
-              {locale === 'vi'
-                ? 'Bắt đầu miễn phí, nâng cấp linh hoạt theo nhu cầu sản xuất — mọi gói trả phí đều được cộng dồn credits sang chu kỳ sau.'
-                : 'Start free, then choose a plan that fits your production volume — unused credits carry over up to 2× between billing cycles.'}
-            </p>
+    <main
+      style={{
+        background:
+          'radial-gradient(ellipse 68% 36% at 50% 0%, rgba(56, 51, 168, 0.34) 0%, rgba(16, 18, 40, 0.14) 52%, #000000 100%)',
+      }}
+    >
+      <section className="vs-container" style={{ paddingTop: 28, paddingBottom: 40 }}>
+        {/* Breadcrumb */}
+        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 24 }}>
+          <Link href="/">Home</Link> <span style={{ margin: '0 6px' }}>›</span> <span style={{ color: '#fff' }}>Pricing</span>
+        </div>
 
-            {/* Monthly / Annual Billing Toggle */}
-            <div className="vs-segmented">
+        {/* Header */}
+        <div style={{ textAlign: 'center', maxWidth: 740, margin: '0 auto 42px' }}>
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '5px 14px',
+              borderRadius: 999,
+              border: '1px solid rgba(255,255,255,0.14)',
+              background: 'rgba(255,255,255,0.04)',
+              fontSize: '0.76rem',
+              fontWeight: 600,
+              marginBottom: 16,
+            }}
+          >
+            Simple, transparent pricing
+          </span>
+          <h1 className="vs-h1" style={{ marginBottom: 14 }}>AI Video Pricing Plans</h1>
+          <p className="vs-lead" style={{ fontSize: '0.96rem' }}>
+            Create more, pay only for what you need. Start free, then choose a plan that fits your production volume — every paid plan includes premium AI video features and credits that carry over between billing cycles.
+          </p>
+        </div>
+
+        {/* Choose Your Plan + Monthly / Annually Pill Toggle */}
+        <div style={{ marginBottom: 46 }}>
+          <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 10 }}>Choose Your Plan</div>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <div className="vs-mode-pill-group">
               <button
                 type="button"
-                className={`vs-segmented-btn ${billing === 'monthly' ? 'active' : ''}`}
-                onClick={() => setBilling('monthly')}
+                className={`vs-mode-pill-btn ${cycle === 'monthly' ? 'active' : ''}`}
+                onClick={() => setCycle('monthly')}
               >
                 Monthly
               </button>
               <button
                 type="button"
-                className={`vs-segmented-btn ${billing === 'annual' ? 'active' : ''}`}
-                onClick={() => setBilling('annual')}
+                className={`vs-mode-pill-btn ${cycle === 'annual' ? 'active' : ''}`}
+                onClick={() => setCycle('annual')}
               >
-                Annually · Save 2 Months
+                <span>Annually</span>
+                <span style={{ color: '#f43f5e', fontSize: '0.74rem', fontWeight: 700 }}>save 2 months</span>
               </button>
             </div>
           </div>
+        </div>
 
-          {/* 4 PRICING TIERS */}
-          <div className="vs-grid-4" style={{ marginBottom: 48 }}>
-            {PRICING_PLANS.map((plan) => {
-              const isCurrent = user.plan === plan.id;
-              const priceDisplay =
-                plan.id === 'free'
-                  ? '$0'
-                  : billing === 'annual'
-                  ? `$${plan.annualMonthlyEquivalent.toFixed(2)}`
-                  : `$${plan.monthlyPrice}`;
-              const creditsDisplay =
-                billing === 'annual' && plan.id !== 'free'
-                  ? `${plan.annualCredits.toLocaleString()} credits/yr`
-                  : `${plan.monthlyCredits.toLocaleString()} credits/mo`;
+        {/* 4 Plan Cards matching marketing_pricing_tall.png 1:1 */}
+        <div className="vs-grid-4" style={{ alignItems: 'stretch', marginBottom: 88 }}>
+          {PRICING_PLANS.map((plan) => {
+            const basePrice = cycle === 'annual' ? plan.annualMonthlyEquivalent : plan.monthlyPrice;
+            const displayPrice = plan.id === 'ultra' && ultraTier === '5760' ? +(basePrice * 2.7).toFixed(1) : basePrice;
+            const isCurrent = user.plan === plan.id;
 
-              return (
-                <div
-                  key={plan.id}
-                  className="vs-card"
-                  style={{
-                    padding: 24,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 16,
-                    borderColor: plan.popular ? 'var(--accent-brand)' : undefined,
-                  }}
+            return (
+              <div key={plan.id} className={`vs-plan-card ${plan.popular ? 'popular' : ''}`}>
+                {plan.popular && <div className="vs-plan-popular-ribbon">Most Popular</div>}
+
+                <div style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 14 }}>{plan.name}</div>
+
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 22 }}>
+                  <span style={{ fontSize: '2.35rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+                    ${displayPrice}
+                  </span>
+                  <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>/mo</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectPlan(plan)}
+                  className="vs-btn vs-btn-white"
+                  style={{ width: '100%', height: 42, marginBottom: 14 }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: '1.3rem', fontWeight: 750 }}>{plan.name}</h2>
-                    {plan.popular && <span className="vs-tag vs-tag-brand">Most Popular</span>}
-                  </div>
+                  {isCurrent
+                    ? 'Current Plan ✓'
+                    : plan.id === 'free'
+                    ? 'Get Started Free'
+                    : 'Subscribe'}
+                </button>
 
-                  <div>
-                    <span style={{ fontSize: '2.25rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
-                      {priceDisplay}
-                    </span>
-                    <span style={{ fontSize: '0.86rem', color: 'var(--text-muted)' }}> /mo</span>
-                    {billing === 'annual' && plan.annualTotal > 0 && (
-                      <div style={{ fontSize: '0.76rem', color: 'var(--accent-teal)', marginTop: 2 }}>
-                        Billed ${plan.annualTotal}/yr (2 months free)
-                      </div>
-                    )}
-                  </div>
-
+                {/* Credits Pill Box */}
+                {plan.id === 'ultra' ? (
                   <div
                     style={{
-                      padding: '10px 12px',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      padding: 3,
                       borderRadius: 10,
-                      background: 'var(--bg-elevated)',
+                      background: '#090a0f',
                       border: '1px solid var(--border-hairline)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: '0.84rem',
+                      marginBottom: 22,
                     }}
                   >
-                    <span style={{ fontWeight: 700 }}>{creditsDisplay}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>{plan.approxMinutes}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSubscribe(plan.id)}
-                    className={
-                      plan.popular
-                        ? 'vs-btn vs-btn-primary'
-                        : 'vs-btn vs-btn-secondary'
-                    }
-                    style={{ width: '100%' }}
-                  >
-                    <Sparkles size={15} />
-                    <span>
-                      {isCurrent
-                        ? `Current Plan (${plan.name})`
-                        : plan.id === 'free'
-                        ? 'Get Started Free'
-                        : `Subscribe to ${plan.name}`}
-                    </span>
-                  </button>
-
-                  <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 9, fontSize: '0.84rem', color: 'var(--text-secondary)', flex: 1 }}>
-                    {(locale === 'vi' ? plan.featuresVi : plan.featuresEn).map((feat) => (
-                      <li key={feat} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                        <Check size={15} style={{ color: 'var(--accent-teal)', marginTop: 3, flexShrink: 0 }} />
-                        <span>{feat}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* INTERACTIVE CREDIT ESTIMATOR + AUTO RECHARGE BAR */}
-          <div className="vs-grid-2" style={{ marginBottom: 60 }}>
-            <div className="vs-card" style={{ padding: 24 }}>
-              <h3 className="vs-h3" style={{ marginBottom: 8 }}>
-                Interactive Credit Cost Calculator (V-Character 4.0)
-              </h3>
-              <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
-                Preview exact interval rounding before submitting any generation job.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 600, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span>Video Duration</span>
-                    <strong>{calcSeconds} seconds ({Math.ceil(calcSeconds / 4)} × 4s intervals)</strong>
-                  </label>
-                  <input
-                    type="range"
-                    min={4}
-                    max={180}
-                    step={4}
-                    value={calcSeconds}
-                    onChange={(e) => setCalcSeconds(Number(e.target.value))}
-                    style={{ width: '100%' }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                  <div className="vs-segmented">
-                    {(['720p', '1080p', '2K'] as ResolutionOption[]).map((r) => (
+                    {(['1920', '5760'] as const).map((tier) => (
                       <button
-                        key={r}
+                        key={tier}
                         type="button"
-                        className={`vs-segmented-btn ${calcRes === r ? 'active' : ''}`}
-                        onClick={() => setCalcRes(r)}
+                        onClick={() => setUltraTier(tier)}
+                        style={{
+                          height: 34,
+                          borderRadius: 8,
+                          background: ultraTier === tier ? '#1c1e2a' : 'transparent',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          color: ultraTier === tier ? '#fff' : 'var(--text-muted)',
+                        }}
                       >
-                        {r}
+                        {tier} credits
                       </button>
                     ))}
                   </div>
-
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.84rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={calcGs}
-                      onChange={(e) => setCalcGs(e.target.checked)}
-                    />
-                    Green Screen (+0.25×)
-                  </label>
-
-                  <div className="vs-tag vs-tag-brand" style={{ fontSize: '0.9rem', padding: '7px 14px' }}>
-                    Estimated: {sampleBill.totalCredits} credits
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="vs-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14 }}>
-              <div>
-                <h3 className="vs-h3" style={{ marginBottom: 8 }}>
-                  Auto Recharge & Permanent Credit Packs
-                </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Purchased credit packs never expire and are immune to monthly rollover caps. Enable Auto Recharge on any paid subscription so automated API/Studio batches never pause.
-                </p>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <button type="button" className="vs-btn vs-btn-secondary" onClick={handleToggleAutoRecharge}>
-                  <RefreshCw size={15} />
-                  <span>Auto Recharge: {user.autoRecharge ? 'ON' : 'OFF'}</span>
-                </button>
-                <button type="button" className="vs-btn vs-btn-primary" onClick={() => setLedgerModalOpen(true)}>
-                  <Coins size={15} />
-                  <span>Buy Extra Credits / View Ledger</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* COMPARE PLANS MATRIX TABLE */}
-          <h2 className="vs-h2" style={{ marginBottom: 20 }}>Compare Plans and Features</h2>
-          <div className="vs-table-wrap" style={{ marginBottom: 64 }}>
-            <table className="vs-table">
-              <thead>
-                <tr>
-                  <th>Feature</th>
-                  <th>Free ($0)</th>
-                  <th>Pro ($9.99)</th>
-                  <th style={{ color: 'var(--accent-brand)' }}>Advanced ($29.9)</th>
-                  <th>Ultra ($99.9)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ['Monthly Credits', '10 credits (≈1m)', '120 credits (≈8m)', '480 credits (≈32m)', '1,920 credits (≈128m)'],
-                  ['Max Single Video Length', '30 seconds', '10 minutes', '10 minutes', '10 minutes'],
-                  ['Export Resolution', '720p', '720p', '720p, 1080p, 2K', '720p, 1080p, 2K, 4K'],
-                  ['Weekly Visit Bonus', '4 credits', '8 credits', '20 credits', '60 credits'],
-                  ['Concurrent Tasks & Priority', '1 · Low', '10 · Express', '10 · Express', '10 · Express'],
-                  ['AI Presentation Slides', 'Preview', '20 Slides', '50 Slides', '100 Slides'],
-                  ['Custom Avatars', '2 only', 'Unlimited', 'Unlimited', 'Unlimited'],
-                  ['Voice Cloning Slots', '—', '10 Voices', '20 Voices', '50 Voices'],
-                  ['Watermark-Free & Commercial Use', '—', '✓ Included', '✓ Included', '✓ Included'],
-                  ['Seedance 2.5, AI Agent & Podcast', 'Preview', '✓ Full Access', '✓ Full Access', '✓ Full Access'],
-                ].map(([label, c1, c2, c3, c4]) => (
-                  <tr key={label}>
-                    <td style={{ fontWeight: 600 }}>{label}</td>
-                    <td>{c1}</td>
-                    <td>{c2}</td>
-                    <td style={{ fontWeight: 650, color: 'var(--text-primary)' }}>{c3}</td>
-                    <td>{c4}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* PRICING FAQ */}
-          <div id="faq" style={{ maxWidth: 820, margin: '0 auto' }}>
-            <h2 className="vs-h2" style={{ textAlign: 'center', marginBottom: 26 }}>Pricing FAQ</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {PRICING_FAQS.map((item, idx) => (
-                <div key={item.q} className="vs-card" style={{ padding: '16px 20px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                    style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left', fontWeight: 650 }}
+                ) : (
+                  <div
+                    style={{
+                      height: 40,
+                      borderRadius: 10,
+                      background: '#1c1e29',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '0 14px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      marginBottom: 22,
+                    }}
                   >
-                    <span>{item.q}</span>
-                    <ChevronDown size={17} />
-                  </button>
-                  {openFaq === idx && (
-                    <p style={{ marginTop: 10, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>{item.a}</p>
-                  )}
-                </div>
+                    {plan.monthlyCredits} credits
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.84rem', fontWeight: 700, marginBottom: 10 }}>Video generation:</div>
+                <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 20 }}>
+                  {plan.videoGenFeaturesEn.map((f) => (
+                    <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: '0.8rem', color: 'rgba(255,255,255,0.88)' }}>
+                      <PurpleCheck />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div style={{ fontSize: '0.84rem', fontWeight: 700, marginBottom: 10 }}>{plan.plusTitleEn}</div>
+                <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  {plan.plusFeaturesEn.map((f) => (
+                    <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)' }}>
+                      <PurpleCheck />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Compare Plans and Features Table (Exact 1:1 match to marketing_pricing_tall.png) */}
+        <div id="faq" style={{ textAlign: 'center', marginBottom: 32 }}>
+          <h2 className="vs-h2" style={{ marginBottom: 8 }}>Compare Plans and Features</h2>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            All core plan information is visible without signing in.
+          </p>
+        </div>
+
+        <div
+          className="vs-card"
+          style={{
+            maxWidth: 1080,
+            margin: '0 auto',
+            padding: '28px 28px 18px',
+            overflowX: 'auto',
+          }}
+        >
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '10px 12px 24px', fontSize: '0.92rem', width: '26%' }}>Feature</th>
+                {PRICING_PLANS.map((p) => (
+                  <th key={p.id} style={{ textAlign: 'center', padding: '10px 10px 24px', width: '18.5%' }}>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 12 }}>
+                      ${cycle === 'annual' ? p.annualMonthlyEquivalent : p.monthlyPrice}
+                      <span style={{ fontSize: '0.74rem', fontWeight: 500, color: 'var(--text-muted)' }}> /mo</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectPlan(p)}
+                      className={`vs-btn vs-btn-sm ${p.popular ? 'vs-btn-primary' : 'vs-btn-secondary'}`}
+                      style={{ width: '90%' }}
+                    >
+                      {p.id === 'free' ? 'Get Started Free' : 'Subscribe'}
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                {
+                  group: 'Video Generation',
+                  rows: [
+                    ['Credits', '10 credits (≈1 minute)', '120 credits (≈8 minutes)', '480 credits (≈30 minutes)', '1920 credits (≈120 minutes)'],
+                    ['Maximum Video Length', '30 seconds', '10 minutes', '10 minutes', '10 minutes'],
+                    ['Video Resolution', '720p', '720p', '1080P,2K', '1080P,2K'],
+                    ['Buy extra credits', false, true, true, true],
+                    ['AI Agent', false, true, true, true],
+                    ['Video Podcast', false, true, true, true],
+                    ['Viral Music', false, true, true, true],
+                    ['Face Swap', false, true, true, true],
+                    ['AI Tools (Seedance 2.5)', false, true, true, true],
+                    ['AI Presentation', false, '20 Slides', '50 Slides', '100 Slides'],
+                    ['Weekly Visit Bonus', '4 credits', '8 credits', '20 credits', '60 credits'],
+                    ['Concurrent Tasks', '1', '10', '10', '10'],
+                    ['Task Priority', 'Low', 'Express', 'Express', 'Express'],
+                  ],
+                },
+                {
+                  group: 'Avatars & audio',
+                  rows: [
+                    ['Clone Voice', false, '10', '20', '50'],
+                    ['Custom Avatar', '2 only', 'Unlimited Avatars', 'Unlimited Avatars', 'Unlimited Avatars'],
+                    ['Premium Voice', false, true, true, true],
+                    ['Preview Audio', false, true, true, true],
+                  ],
+                },
+                {
+                  group: 'Creative & commercial',
+                  rows: [
+                    ['Image Generation', false, true, true, true],
+                    ['Watermark-Free', false, true, true, true],
+                    ['Commercial Use', false, true, true, true],
+                  ],
+                },
+              ].map((sec) => (
+                <React.Fragment key={sec.group}>
+                  <tr>
+                    <td
+                      colSpan={5}
+                      style={{
+                        background: '#191b24',
+                        padding: '9px 14px',
+                        borderRadius: 8,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {sec.group}
+                    </td>
+                  </tr>
+                  {sec.rows.map((row) => (
+                    <tr key={String(row[0])} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={{ padding: '14px 12px', fontSize: '0.82rem', fontWeight: 550 }}>{row[0]}</td>
+                      {[1, 2, 3, 4].map((colIdx) => (
+                        <td key={colIdx} style={{ padding: '14px 10px', textAlign: 'center' }}>
+                          <MatrixCell value={row[colIdx] as boolean | string} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </React.Fragment>
               ))}
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
       </section>
 

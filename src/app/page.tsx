@@ -5,984 +5,854 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
+  ArrowUp,
   ArrowUpRight,
-  Award,
   Check,
   ChevronDown,
   Copy,
-  Mic,
-  Music,
-  Play,
-  Sparkles,
-  Star,
+  Plus,
   Terminal,
-  Upload,
   Volume2,
-  Wand2,
 } from 'lucide-react';
+import { AI_MODELS, CREATOR_TOOLS, STOCK_AVATARS } from '@/lib/catalog';
 import { useVisionStory } from '@/components/VisionStoryProvider';
 import { Footer } from '@/components/Footer';
-import { AI_MODELS } from '@/lib/catalog';
-import { speakScript } from '@/lib/audioEngine';
+import {
+  G2AwardShield,
+  G2CircleBadge,
+  VsIconAiVideo,
+  VsIconFaceSwap,
+  VsIconPodcast,
+  VsIconTools,
+  VsIconViralMusic,
+} from '@/components/Icons';
 
-const AGENT_SETUP_PROMPTS: Record<string, string> = {
-  'Claude Code': `Help me set up VisionStory and generate a talking-avatar video.
-1. Install or update the CLI and Agent Skill:
-   curl -fsSL https://developers.visionstory.ai/cli | bash
-   npx skills add visionstory-ai/skills --skill visionstory-api
-2. Run visionstory doctor. Verify access with visionstory credits.
-3. Discover current models, avatars, and voices via GET /api/v1/models, /api/v1/avatars, and /api/v1/voices.
-4. Submit POST /api/v1/video and download the completed MP4.`,
-  Cursor: `Configure VisionStory MCP & CLI in Cursor workspace:
-1. Run: curl -fsSL https://developers.visionstory.ai/cli | bash
-2. Set VISIONSTORY_API_KEY in local secret env and test GET /api/v1/credits.
-3. Generate a talking-avatar explainer using model vs_character_v4.`,
-  Codex: `Use VisionStory REST API (/api/v1/video) with X-API-Key from environment.
-Fetch live avatar_id and voice_id first, submit text_script, poll status until created, and save result.mp4.`,
-  Windsurf: `Add VisionStory Agent Skill (npx skills add visionstory-ai/skills --skill visionstory-api), verify credits, and automate multi-language talking product demos.`,
-  Cline: `Connect VisionStory MCP server toolset so Cline can list avatars, synthesize multilingual speech, and render 1080p talking presenter clips.`,
-  Gemini: `Install VisionStory CLI, verify credits with visionstory credits, then orchestrate V-Character 4.0 and Nano Banana 2 assets into a finished video.`,
-};
-
-const HOME_FAQS = [
+const G2_REVIEWS = [
   {
-    qEn: 'How do I create a video on VisionStory?',
-    aEn: 'Upload a clear front-facing photo (or choose from 160+ stock avatars), then type the script you want the avatar to say or upload your own audio. Pick a voice from 1,000+ options across 88 languages, click Generate, and your talking video is ready in minutes.',
-    qVi: 'Làm thế nào để tạo video trên VisionStory?',
-    aVi: 'Tải lên một bức ảnh chân dung nhìn thẳng (hoặc chọn từ 160+ avatar có sẵn), nhập kịch bản hoặc tải lên file ghi âm. Chọn giọng đọc từ hơn 1.000 giọng thuộc 88 ngôn ngữ, nhấn Tạo Video và nhận thành phẩm ngay.',
+    initials: 'AG',
+    name: 'AKI G.',
+    org: 'Small-Business · International Trade and Development',
+    title: 'VisionStory AI Delivers Strong ROI with Fast, High-Quality Video Creation',
+    body: 'I like VisionStory AI because it delivers strong ROI through intelligent automation, lifelike avatar expressions, and fast multi-language publishing.',
   },
   {
-    qEn: 'Is video generation free to try?',
-    aEn: 'Eligible new accounts receive 10 free sign-up credits, plus a Weekly Visit Bonus (4 credits on Free, 8 on Pro, 20 on Advanced, and 60 on Ultra). Video & Photo Face Swap is completely free with HD output and no watermark.',
-    qVi: 'Tôi có được dùng thử tạo video miễn phí không?',
-    aVi: 'Tài khoản mới nhận ngay 10 sign-up credits miễn phí kèm Thưởng ghé thăm hàng tuần (4 credits gói Free, 8 gói Pro, 20 gói Advanced và 60 gói Ultra). Riêng tính năng Face Swap hoàn toàn miễn phí xuất HD không watermark.',
+    initials: 'TL',
+    name: 'Tony L.',
+    org: 'Small-Business · Animation',
+    title: 'Natural Lip-Sync & Zero Manual Keyframing',
+    body: 'V-Character 4.0 keeps the exact same face identity even on 5-minute explainer scripts. Singing lip sync with Suno tracks is pure magic.',
   },
   {
-    qEn: 'How are credits calculated?',
-    aEn: 'V-Character 4.0 talking video costs 1 credit per 4-second interval at 720p, with partial intervals rounded up. 1080p adds 0.5× base credits, 2K adds 2.5× base credits, and Green Screen adds 0.25× base credits, each rounded up separately.',
-    qVi: 'Credits được tính như thế nào?',
-    aVi: 'Video nói chuyện V-Character 4.0 tốn 1 credit cho mỗi khoảng 4 giây ở 720p (làm tròn lên). Xuất 1080p cộng thêm 0.5×, 2K cộng 2.5× và Phông xanh Green Screen cộng 0.25× số credit cơ bản.',
+    initials: 'AM',
+    name: 'Aaron Misael G.',
+    org: 'Small-Business · Animation',
+    title: 'AI Video Agent Replaced Four Separate Tools',
+    body: 'Handing the Agent a single brief and getting scenes, voiceover, avatar framing, and burned-in captions in one shot saves us hours every week.',
   },
   {
-    qEn: 'What languages and voices are supported?',
-    aEn: 'VisionStory supports 88 languages with 1,000+ natural voices — including English, Vietnamese, Spanish, Chinese, Japanese, German, French, Portuguese, and Arabic — plus instant personal Voice Cloning.',
-    qVi: 'VisionStory hỗ trợ những ngôn ngữ và giọng đọc nào?',
-    aVi: 'Hỗ trợ 88 ngôn ngữ với hơn 1.000 giọng tự nhiên bao gồm Tiếng Việt, Tiếng Anh, Nhật, Hàn, Trung, Pháp, Đức, Tây Ban Nha… cùng tính năng nhân bản giọng nói cá nhân (Voice Clone).',
+    initials: 'JH',
+    name: 'Jill H.',
+    org: 'Small-Business · Entertainment',
+    title: 'Podcast & Music Videos in Minutes',
+    body: 'We convert our audio episodes directly into two-host studio video podcasts for YouTube and vertical Reels without setting up cameras.',
   },
   {
-    qEn: 'How long can my videos be?',
-    aEn: 'Free accounts can generate videos up to 30 seconds. Paid plans extend single-video length up to 10 minutes with consistent character appearance.',
-    qVi: 'Video của tôi có thể dài tối đa bao lâu?',
-    aVi: 'Tài khoản miễn phí hỗ trợ tối đa 30 giây/video. Các gói trả phí mở rộng thời lượng lên tới 10 phút liên tục mà vẫn giữ nguyên diện mạo nhân vật.',
+    initials: 'YD',
+    name: 'Yanlong D.',
+    org: 'Mid-Market · Computer Software',
+    title: 'Clean REST API, Python SDK, and MCP Integration',
+    body: 'Our growth engineering pipeline triggers localized product walkthroughs directly via POST /api/v1/video with predictable credit billing.',
   },
   {
-    qEn: 'Do I need to record a video to create an avatar?',
-    aEn: 'No. A single clear front-facing photo is enough — V-Character 4.0 animates it into a talking presenter with natural facial expressions, lip-sync, and hand movement.',
-    qVi: 'Tôi có cần quay video mẫu để tạo avatar không?',
-    aVi: 'Không cần. Chỉ một bức ảnh chân dung rõ nét là đủ để V-Character 4.0 tái tạo cử động khuôn mặt, nhép môi và cử chỉ tay sống động.',
-  },
-  {
-    qEn: 'Which video models does VisionStory offer?',
-    aEn: 'V-Character 4.0 is our native talking-avatar model. For cinematic B-roll and commercial scenes, VisionStory also runs Seedance 2.5, Kling O3, MiniMax H3, Wan 3.0, and Nano Banana 2 inside the same Studio.',
-    qVi: 'VisionStory tích hợp những mô hình AI nào?',
-    aVi: 'Bên cạnh mô hình gốc V-Character 4.0 chuyên trị MC nói chuyện, VisionStory tích hợp trực tiếp Seedance 2.5, Kling O3, MiniMax H3, Wan 3.0 và Nano Banana 2 ngay trong cùng một Studio.',
+    initials: 'LS',
+    name: 'liu s.',
+    org: 'Small-Business · Legal Services',
+    title: 'Crisp 1080p & 2K Client Explainers',
+    body: 'Turning FAQ documents and Keynote slides into warm presenter-hosted videos elevated our client onboarding experience overnight.',
   },
 ];
 
-export default function HomePage() {
-  const router = useRouter();
-  const { locale, t, avatars, voices, showToast } = useVisionStory();
+const HOME_FAQS = [
+  {
+    q: 'How do I create a video on VisionStory?',
+    a: 'Upload a clear front-facing photo or pick from 160+ studio avatars, then type the script you want the avatar to say or upload your own audio. Pick a voice from 1,000+ options in 88 languages, click Generate, and your talking video is ready in minutes.',
+  },
+  {
+    q: 'Is video generation free to try?',
+    a: 'Yes! Every new account starts with 10 free sign-up credits plus 4 Weekly Visit Bonus credits so you can test V-Character 4.0 talking videos, Face Swap, and studio tools right away.',
+  },
+  {
+    q: 'How are credits calculated?',
+    a: 'Standard V-Character 4.0 talking videos use 1 credit per 4-second interval at 720p (15 credits per minute). Exporting in 1080p adds +0.5×, 2K adds +2.5×, and Green Screen cutout adds +0.25×.',
+  },
+  {
+    q: 'What can the AI Video Agent create?',
+    a: 'Give the AI Video Agent a short prompt, URL, PDF, or slide outline. It automatically plans a multi-shot storyboard with script, scene visuals, avatar framing, voiceover, and captions in 16:9, 9:16, or 1:1.',
+  },
+  {
+    q: 'Can I automate VisionStory from my own backend or AI coding agent?',
+    a: 'Yes. VisionStory offers a full REST OpenAPI, Python SDK, VisionStory CLI, and MCP Server so coding agents and backend pipelines can discover avatars/voices and render videos programmatically.',
+  },
+];
 
-  const [heroPrompt, setHeroPrompt] = useState(
-    'Introduce our AI-powered analytics workspace in 20 seconds with an energetic, trustworthy product demo tone.'
-  );
-  const [selectedAvatarId, setSelectedAvatarId] = useState(avatars[0]?.id || 'av_aria_v4');
-  const [selectedVoiceId, setSelectedVoiceId] = useState('voice_alloy');
-  const [faceSwapTab, setFaceSwapTab] = useState<'video' | 'photo'>('video');
-  const [seedanceMode, setSeedanceMode] = useState('Text To Video');
-  const [seedancePrompt, setSeedancePrompt] = useState(
-    'Sleek silver electric coupe gliding through rain-lit Tokyo neon streets at dusk, anamorphic cinema lens'
-  );
-  const [codingAgent, setCodingAgent] = useState('Claude Code');
-  const [agentProtocol, setAgentProtocol] = useState<'skill' | 'mcp'>('skill');
+export default function MarketingHomePage() {
+  const router = useRouter();
+  const { locale, showToast } = useVisionStory();
+  const [agentPrompt, setAgentPrompt] = useState('');
+  const [selectedModelId, setSelectedModelId] = useState('seedance-2.5');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  const launchHeroStudio = () => {
-    const params = new URLSearchParams({
-      tab: 'ai-video',
-      avatar: selectedAvatarId,
-      voice: selectedVoiceId,
-      prompt: heroPrompt,
-    });
-    router.push(`/studio?${params.toString()}`);
+  const selectedModel = AI_MODELS.find((m) => m.id === selectedModelId) || AI_MODELS[2];
+
+  const handleHeroAgentSubmit = () => {
+    const q = agentPrompt.trim() || 'Create a 30-second product launch video introducing our AI workspace';
+    router.push(`/studio?tab=ai-agent&prompt=${encodeURIComponent(q)}`);
   };
 
-  const copyText = (text: string, label: string) => {
-    navigator.clipboard?.writeText(text);
-    showToast(locale === 'vi' ? `Đã sao chép ${label}!` : `Copied ${label} to clipboard!`);
+  const copyText = (txt: string, label: string) => {
+    navigator.clipboard.writeText(txt);
+    showToast(`Copied ${label} to clipboard!`);
   };
 
   return (
-    <main>
-      {/* 1. HERO SECTION */}
-      <section className="vs-section" style={{ paddingTop: 72, paddingBottom: 80 }}>
-        <div className="vs-container">
-          <div style={{ maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
-            <h1 className="vs-h1" style={{ marginBottom: 20 }}>
-              {t.hero.titleLine1}
-              <br />
-              {t.hero.titleLine2}
-            </h1>
-            <p className="vs-lead" style={{ margin: '0 auto 30px' }}>
-              {t.hero.subtitle}
-            </p>
+    <main style={{ padding: '0 14px' }}>
+      {/* =========================================================
+          1. HERO STAGE (Exact 1:1 match to home.png)
+          ========================================================= */}
+      <section className="vs-hero-stage">
+        <div className="vs-hero-bg-media">
+          <img src="/assets/avatars/elena.jpg" alt="VisionStory AI Presenter" />
+        </div>
+        <div className="vs-hero-vignette" />
 
-            <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 38 }}>
-              <Link href="/studio" className="vs-btn vs-btn-primary vs-btn-lg" id="hero-cta-primary">
-                <span>{t.hero.ctaPrimary}</span>
-                <ArrowRight size={18} />
-              </Link>
-              <Link href="/openapi" className="vs-btn vs-btn-secondary vs-btn-lg" id="hero-cta-api">
-                <Terminal size={17} />
-                <span>{t.hero.ctaSecondary}</span>
-              </Link>
-            </div>
-          </div>
-
-          {/* Interactive Hero Studio Composer Box */}
-          <div
-            className="vs-card"
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 2,
+            maxWidth: 820,
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          <h1
             style={{
-              maxWidth: 960,
-              margin: '0 auto 34px',
-              padding: 22,
-              background: 'linear-gradient(180deg, hsla(222,18%,13%,0.95), hsla(222,20%,8.5%,0.98))',
+              fontSize: 'clamp(2.55rem, 5vw, 4.15rem)',
+              fontWeight: 800,
+              lineHeight: 1.09,
+              letterSpacing: '-0.032em',
+              marginBottom: 18,
             }}
           >
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-                {avatars.slice(0, 6).map((av) => {
-                  const active = av.id === selectedAvatarId;
-                  return (
-                    <button
-                      key={av.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAvatarId(av.id);
-                        setSelectedVoiceId(av.defaultVoiceId);
-                      }}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '5px 11px 5px 5px',
-                        borderRadius: 999,
-                        background: active ? 'var(--accent-brand-soft)' : 'var(--bg-elevated)',
-                        border: `1px solid ${active ? 'var(--accent-brand)' : 'var(--border-hairline)'}`,
-                        fontSize: '0.82rem',
-                        fontWeight: 600,
-                      }}
-                    >
-                      <img
-                        src={av.image}
-                        alt={av.name}
-                        style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                      <span>{av.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            {locale === 'vi' ? (
+              <>
+                Biến mọi ý tưởng <span className="vs-hero-tint-word">thành</span>
+                <br />
+                video AI cuốn hút <span className="vs-hero-tint-word">đáng xem</span>
+              </>
+            ) : (
+              <>
+                Turn any idea <span className="vs-hero-tint-word">into</span>
+                <br />
+                an AI video worth <span className="vs-hero-tint-word">watching</span>
+              </>
+            )}
+          </h1>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <select
-                  aria-label="Select voice"
-                  className="vs-select"
-                  style={{ width: 'auto', padding: '7px 12px', fontSize: '0.83rem' }}
-                  value={selectedVoiceId}
-                  onChange={(e) => setSelectedVoiceId(e.target.value)}
-                >
-                  {voices.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      🎙 {v.name} · {v.language}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="vs-btn vs-btn-secondary vs-btn-sm"
-                  onClick={() => {
-                    const chosen = voices.find((v) => v.id === selectedVoiceId) || voices[0];
-                    speakScript({ text: heroPrompt || chosen.sampleText, voice: chosen });
-                  }}
-                >
-                  <Volume2 size={14} />
-                  <span>Preview</span>
-                </button>
-              </div>
-            </div>
+          <p
+            style={{
+              fontSize: '1.02rem',
+              color: 'rgba(255,255,255,0.78)',
+              maxWidth: 670,
+              lineHeight: 1.58,
+              marginBottom: 28,
+            }}
+          >
+            {locale === 'vi'
+              ? 'Nhập câu lệnh, tải ảnh chân dung hoặc đưa slide vào. VisionStory tự động đạo diễn bối cảnh, giọng nói, chuyển động và phụ đề — sẵn sàng xuất bản trong vài phút.'
+              : 'Write a prompt, upload a photo, or bring your slides. VisionStory directs the scene, voice, motion, and captions — ready to publish in minutes.'}
+          </p>
 
-            <textarea
-              className="vs-textarea"
-              style={{ minHeight: 88, marginBottom: 14 }}
-              value={heroPrompt}
-              onChange={(e) => setHeroPrompt(e.target.value)}
-              placeholder={t.hero.promptPlaceholder}
-            />
+          <Link
+            href="/studio"
+            className="vs-btn vs-btn-primary vs-btn-lg"
+            style={{ padding: '14px 30px', fontSize: '0.96rem', marginBottom: 34 }}
+            id="hero-get-started-btn"
+          >
+            <span>{locale === 'vi' ? 'Bắt đầu MIỄN PHÍ' : 'Get started FREE'}</span>
+            <ArrowRight size={16} />
+          </Link>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                <span className="vs-tag">V-Character 4.0</span>
-                <span className="vs-tag">720p · 1080p · 2K</span>
-                <span className="vs-tag">16:9 · 9:16 · 1:1</span>
-                <span className="vs-tag">88 Languages</span>
-              </div>
-              <button
-                type="button"
-                onClick={launchHeroStudio}
-                className="vs-btn vs-btn-primary"
-                id="hero-quick-launch-btn"
-              >
-                <Sparkles size={16} />
-                <span>{t.hero.quickLaunch}</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* G2 Awards & Social Proof Strip */}
+          {/* G2 4.7/5 + 4 Fall 2026 Hexagonal Award Shields */}
           <div
             style={{
               display: 'flex',
               flexWrap: 'wrap',
-              justifyContent: 'center',
               alignItems: 'center',
-              gap: 14,
-              color: 'var(--text-secondary)',
-              fontSize: '0.84rem',
+              justifyContent: 'center',
+              gap: 18,
             }}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: 'var(--text-primary)' }}>
-              <Star size={15} fill="#f59e0b" color="#f59e0b" />
-              {t.hero.g2Score}
-            </span>
-            <span>·</span>
-            <span className="vs-tag"><Award size={13} /> High Performer · Fall 2026</span>
-            <span className="vs-tag"><Award size={13} /> Easiest To Use</span>
-            <span className="vs-tag"><Award size={13} /> Best Estimated ROI</span>
-            <span className="vs-tag"><Award size={13} /> Fastest Implementation</span>
-          </div>
-        </div>
-      </section>
-
-      {/* 2. V-CHARACTER 4.0 LIFELIKE AI AVATARS */}
-      <section className="vs-section">
-        <div className="vs-container">
-          <div style={{ marginBottom: 42 }}>
-            <span className="vs-eyebrow">{t.sections.avatarEyebrow}</span>
-            <h2 className="vs-h2" style={{ marginBottom: 12 }}>{t.sections.avatarTitle}</h2>
-            <p className="vs-lead">{t.sections.avatarDesc}</p>
-          </div>
-
-          <div className="vs-grid-2">
-            {[
-              {
-                img: '/assets/avatars/aria.jpg',
-                badge: 'V-Character 4.0',
-                title: locale === 'vi' ? 'V-Character 4.0: AI Avatar Chân Thực Vượt Trội' : 'V-Character 4.0: More Realistic AI Avatars',
-                desc:
-                  locale === 'vi'
-                    ? 'Mô hình V-Character mới nhất tái tạo gương mặt sắc nét, biểu cảm tinh tế cùng chuyển động tay và cơ thể tự nhiên chỉ từ một bức ảnh.'
-                    : 'The latest V-Character model renders sharper faces, subtler expressions, and natural hand and body movement for lifelike talking videos.',
-                cta: 'Explore AI Avatar →',
-                href: '/studio?tab=ai-video',
-              },
-              {
-                img: '/assets/avatars/kenji.jpg',
-                badge: 'Up to 10 Minutes',
-                title: locale === 'vi' ? 'Đồng Nhất Nhân Vật Cho Video Dài Tới 10 Phút' : 'Consistent AI Characters for Long Videos',
-                desc:
-                  locale === 'vi'
-                    ? 'Tạo video thuyết trình, đào tạo dài tới 10 phút mà vẫn giữ nguyên diện mạo, trang phục và thần thái nhân vật xuyên suốt mọi cảnh.'
-                    : "Create AI avatar videos up to 10 minutes long while keeping your character's appearance and identity consistent in every scene.",
-                cta: 'Explore AI Video →',
-                href: '/studio?tab=ai-video',
-              },
-              {
-                img: '/assets/avatars/sofia.jpg',
-                badge: '1,000+ Voices · 88 Languages',
-                title: locale === 'vi' ? 'Giọng Đọc AI Đa Ngôn Ngữ Cho Khán Giả Toàn Cầu' : 'Multilingual AI Voices for Global Audiences',
-                desc:
-                  locale === 'vi'
-                    ? 'Lựa chọn hơn 1.000 giọng đọc tự nhiên thuộc 88 ngôn ngữ và vùng miền, hoặc nhân bản giọng nói cá nhân của chính bạn.'
-                    : 'Choose from over 1,000 natural AI voices across 88 languages, countries, and regional accents, or clone your own voice.',
-                cta: 'Explore AI Voices →',
-                href: '/studio?tab=ai-tools&tool=voice-clone',
-              },
-              {
-                img: '/assets/avatars/david.jpg',
-                badge: '720p · 1080p · 2K',
-                title: locale === 'vi' ? 'Độ Phân Giải Sắc Nét Lên Đến 2K' : 'High-Resolution up to 2K',
-                desc:
-                  locale === 'vi'
-                    ? 'Xuất bản video chuyên nghiệp ở độ phân giải 720p, 1080p Full HD hoặc 2K siêu nét kèm tách phông xanh cho marketing và đào tạo.'
-                    : 'Export professional AI avatar videos in 720p, 1080p, or crisp 2K resolution for marketing, training, and social media.',
-                cta: 'Explore HD Video →',
-                href: '/studio?tab=ai-video',
-              },
-            ].map((card) => (
-              <div key={card.title} className="vs-card vs-card-interactive" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ height: 250, position: 'relative', overflow: 'hidden' }}>
-                  <img
-                    src={card.img}
-                    alt={card.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%' }}
-                  />
-                  <span className="vs-tag vs-tag-brand" style={{ position: 'absolute', top: 14, left: 14 }}>
-                    {card.badge}
-                  </span>
-                </div>
-                <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-                  <h3 className="vs-h3">{card.title}</h3>
-                  <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', flex: 1 }}>{card.desc}</p>
-                  <Link href={card.href} style={{ color: 'var(--accent-brand)', fontWeight: 650, fontSize: '0.9rem' }}>
-                    {card.cta}
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 3. AI VIDEO AGENT + POINT TOOLS COMPARISON TABLE */}
-      <section className="vs-section">
-        <div className="vs-container">
-          <div className="vs-grid-2" style={{ alignItems: 'center', marginBottom: 48 }}>
-            <div>
-              <span className="vs-eyebrow">{t.sections.agentEyebrow}</span>
-              <h2 className="vs-h2" style={{ marginBottom: 14 }}>{t.sections.agentTitle}</h2>
-              <p className="vs-lead" style={{ marginBottom: 24 }}>{t.sections.agentDesc}</p>
-              <Link href="/studio?tab=ai-agent" className="vs-btn vs-btn-primary">
-                <span>Try AI Agent</span>
-                <ArrowUpRight size={16} />
-              </Link>
-            </div>
-
-            <div className="vs-card" style={{ padding: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span className="vs-tag vs-tag-teal">Multi-Shot Storyboard Planner</span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>16:9 · 9:16 · 1:1</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[
-                  { shot: 'Shot 01 · Hook', line: 'Turn any product URL or deck into a hosted multi-scene video.' },
-                  { shot: 'Shot 02 · Demo', line: 'Automatic voiceover, V-Character lip-sync, and dynamic captions.' },
-                  { shot: 'Shot 03 · Chat Edit', line: '"Make Shot 2 punchier and localize into Vietnamese & Spanish."' },
-                ].map((s) => (
-                  <div
-                    key={s.shot}
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: 12,
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-hairline)',
-                    }}
-                  >
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-brand)', marginBottom: 3 }}>
-                      {s.shot}
-                    </div>
-                    <div style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{s.line}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <h3 className="vs-h3" style={{ marginBottom: 16 }}>
-            {locale === 'vi'
-              ? 'So sánh AI Agent với các công cụ rời rạc truyền thống'
-              : 'One AI video generator for the full production cycle'}
-          </h3>
-          <div className="vs-table-wrap">
-            <table className="vs-table">
-              <thead>
-                <tr>
-                  <th>{locale === 'vi' ? 'Nhu cầu sản xuất' : 'What you need'}</th>
-                  <th>{locale === 'vi' ? 'Công cụ đơn lẻ (Point tools)' : 'Point tools'}</th>
-                  <th style={{ color: 'var(--accent-teal)' }}>VisionStory AI Agent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ['Start from a prompt, URL, or deck', 'Limited', 'Built in'],
-                  ['Script and multi-shot plan', 'Separate step', 'Automatic'],
-                  ['Avatar, voiceover, and captions', 'Multiple tools', 'Integrated'],
-                  ['Revise a shot after the first draft', 'Manual re-editing', 'Scene-level chat edits'],
-                  ['Ready for ads, training, or product pages', 'Generic output', 'Purpose-built'],
-                ].map(([need, point, agent]) => (
-                  <tr key={need}>
-                    <td style={{ fontWeight: 600 }}>{need}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{point}</td>
-                    <td style={{ color: 'var(--accent-teal)', fontWeight: 650 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <Check size={15} /> {agent}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. AI MUSIC VIDEO & 5. AI VIDEO PODCAST */}
-      <section className="vs-section">
-        <div className="vs-container">
-          <div className="vs-grid-2" style={{ alignItems: 'center', marginBottom: 72 }}>
-            <div className="vs-card" style={{ overflow: 'hidden' }}>
-              <img
-                src="/assets/showcase/music-singer.jpg"
-                alt="AI Music Video Studio Singer"
-                style={{ width: '100%', height: 320, objectFit: 'cover', display: 'block' }}
-              />
-              <div style={{ padding: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  <Music size={14} style={{ display: 'inline', marginRight: 6 }} />
-                  Supports MP3, WAV, Suno & Udio tracks
-                </span>
-                <span className="vs-tag vs-tag-brand">Natural Singing Lip-Sync</span>
-              </div>
-            </div>
-
-            <div>
-              <span className="vs-eyebrow">{t.sections.musicEyebrow}</span>
-              <h2 className="vs-h2" style={{ marginBottom: 14 }}>{t.sections.musicTitle}</h2>
-              <p className="vs-lead" style={{ marginBottom: 20 }}>{t.sections.musicDesc}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-                <span className="vs-tag">Works With Any Song</span>
-                <span className="vs-tag">Natural Singing Lip Sync</span>
-                <span className="vs-tag">Cinematic Multi-Shot Scenes</span>
-              </div>
-              <Link href="/studio?tab=viral-music" className="vs-btn vs-btn-primary">
-                <span>Make Your Music Video</span>
-                <ArrowUpRight size={16} />
-              </Link>
-            </div>
-          </div>
-
-          <div className="vs-grid-2" style={{ alignItems: 'center' }}>
-            <div>
-              <span className="vs-eyebrow">{t.sections.podcastEyebrow}</span>
-              <h2 className="vs-h2" style={{ marginBottom: 14 }}>{t.sections.podcastTitle}</h2>
-              <p className="vs-lead" style={{ marginBottom: 22 }}>{t.sections.podcastDesc}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-                {[
-                  ['01 · Upload Your Podcast Audio', 'Upload MP3/WAV — including Google NotebookLM audio — and auto-split speakers.'],
-                  ['02 · Start from a Studio Template', 'Assign two host portraits, studio lighting, and broadcast layout.'],
-                  ['03 · Type a Two-Host Script', 'Write or generate conversational banter and render in one click.'],
-                ].map(([title, sub]) => (
-                  <div key={title} style={{ padding: '10px 14px', borderRadius: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border-hairline)' }}>
-                    <div style={{ fontWeight: 650, fontSize: '0.9rem' }}>{title}</div>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{sub}</div>
-                  </div>
-                ))}
-              </div>
-              <Link href="/studio?tab=podcast" className="vs-btn vs-btn-primary">
-                <Mic size={16} />
-                <span>Make a Video Podcast</span>
-              </Link>
-            </div>
-
-            <div className="vs-card" style={{ overflow: 'hidden' }}>
-              <img
-                src="/assets/showcase/podcast-studio.jpg"
-                alt="Dual Host AI Video Podcast"
-                style={{ width: '100%', height: 340, objectFit: 'cover', display: 'block' }}
-              />
-              <div style={{ padding: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Auto Two-Speaker Diarization & Lip-Sync
-                </span>
-                <span className="vs-tag vs-tag-teal">NotebookLM Compatible</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. AI VIDEO & PHOTO FACE SWAP */}
-      <section className="vs-section">
-        <div className="vs-container">
-          <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 36px' }}>
-            <span className="vs-eyebrow">{t.sections.faceswapEyebrow}</span>
-            <h2 className="vs-h2" style={{ marginBottom: 12 }}>{t.sections.faceswapTitle}</h2>
-            <p className="vs-lead" style={{ margin: '0 auto 18px' }}>{t.sections.faceswapDesc}</p>
-            <div className="vs-segmented">
-              <button
-                type="button"
-                className={`vs-segmented-btn ${faceSwapTab === 'video' ? 'active' : ''}`}
-                onClick={() => setFaceSwapTab('video')}
-              >
-                Video Face Swap
-              </button>
-              <button
-                type="button"
-                className={`vs-segmented-btn ${faceSwapTab === 'photo' ? 'active' : ''}`}
-                onClick={() => setFaceSwapTab('photo')}
-              >
-                Photo Face Swap
-              </button>
-            </div>
-          </div>
-
-          <div className="vs-card" style={{ maxWidth: 860, margin: '0 auto', padding: 28 }}>
-            <div className="vs-grid-2" style={{ marginBottom: 20 }}>
-              <Link
-                href={`/studio?tab=face-swap&mode=${faceSwapTab}`}
-                style={{
-                  border: '1px dashed var(--border-strong)',
-                  borderRadius: 16,
-                  padding: 28,
-                  textAlign: 'center',
-                  background: 'var(--bg-elevated)',
-                }}
-              >
-                <Upload size={26} style={{ color: 'var(--accent-brand)', marginBottom: 10 }} />
-                <div style={{ fontWeight: 650, marginBottom: 4 }}>1. Upload Reference Face</div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  Click or drop the portrait face you want to use
-                </div>
-              </Link>
-
-              <Link
-                href={`/studio?tab=face-swap&mode=${faceSwapTab}`}
-                style={{
-                  border: '1px dashed var(--border-strong)',
-                  borderRadius: 16,
-                  padding: 28,
-                  textAlign: 'center',
-                  background: 'var(--bg-elevated)',
-                }}
-              >
-                <Play size={26} style={{ color: 'var(--accent-teal)', marginBottom: 10 }} />
-                <div style={{ fontWeight: 650, marginBottom: 4 }}>
-                  2. Upload Target {faceSwapTab === 'video' ? 'Video Clip' : 'Photo'}
-                </div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  Frame-by-frame motion, lighting & expression alignment
-                </div>
-              </Link>
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                ✓ Free · No sign-up required · No watermark · HD output
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <G2CircleBadge />
+              <span style={{ color: '#ff6b3d', letterSpacing: 2, fontSize: '0.95rem' }}>★★★★★</span>
+              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                4.7 / 5 from 535 reviews
               </span>
-              <Link href={`/studio?tab=face-swap&mode=${faceSwapTab}`} className="vs-btn vs-btn-primary">
-                <Wand2 size={16} />
-                <span>Try Face Swap Free</span>
-              </Link>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <G2AwardShield title="High Performer" accent="#ff5c35" />
+              <G2AwardShield title="Easiest To Use" accent="#f59e0b" />
+              <G2AwardShield title="Best Est. ROI" accent="#6366f1" />
+              <G2AwardShield title="Fastest Impl." accent="#0ea5e9" />
             </div>
           </div>
         </div>
       </section>
 
-      {/* 7. SEEDANCE 2.5 & VIDEO MODELS */}
-      <section className="vs-section">
-        <div className="vs-container">
-          <div style={{ marginBottom: 32 }}>
-            <span className="vs-eyebrow">{t.sections.modelsEyebrow}</span>
-            <h2 className="vs-h2" style={{ marginBottom: 12 }}>{t.sections.modelsTitle}</h2>
-            <p className="vs-lead">{t.sections.modelsDesc}</p>
+      {/* =========================================================
+          2. AI AVATAR GENERATOR (Exact 1:1 Indigo Shell + 2x2 Light Mint Bento)
+          ========================================================= */}
+      <section className="vs-section-shell vs-section-shell-indigo">
+        <div style={{ maxWidth: 640, marginBottom: 40 }}>
+          <span className="vs-eyebrow">AI AVATAR GENERATOR</span>
+          <h2 className="vs-h2" style={{ marginBottom: 14 }}>
+            {locale === 'vi'
+              ? 'Nhân vật AI chân thực nhất trong thế giới AI Video'
+              : 'The most lifelike AI avatars in AI video'}
+          </h2>
+          <p className="vs-lead" style={{ fontSize: '0.98rem' }}>
+            Character consistency is what separates a useful avatar from a gimmick. V-Character delivers it across every angle, every expression, and every video you create.
+          </p>
+        </div>
+
+        <div className="vs-grid-2" style={{ marginBottom: 34 }}>
+          {/* Card 1 */}
+          <div className="vs-light-bento-card">
+            <div className="vs-light-bento-media" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <img src="/assets/avatars/claire.jpg" alt="Angle 1" style={{ width: 62, height: 62, borderRadius: 12, objectFit: 'cover', border: '2px solid #fff' }} />
+                <img src="/assets/avatars/aria.jpg" alt="Angle 2" style={{ width: 62, height: 62, borderRadius: 12, objectFit: 'cover', border: '2px solid #fff', marginLeft: 18 }} />
+              </div>
+              <img
+                src="/assets/avatars/claire.jpg"
+                alt="V-Character 4.0"
+                style={{ width: 190, height: 190, borderRadius: 18, objectFit: 'cover', boxShadow: '0 14px 30px rgba(30,41,59,0.2)' }}
+              />
+            </div>
+            <div style={{ padding: '4px 6px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+                V-Character 4.0: More Realistic AI Avatars
+              </h3>
+              <p style={{ fontSize: '0.84rem', color: '#475569', lineHeight: 1.55, marginBottom: 12 }}>
+                The latest V-Character model renders sharper faces, subtler expressions, and natural hand and body movement for lifelike talking videos.
+              </p>
+              <Link href="/studio?tab=ai-video" style={{ fontSize: '0.84rem', fontWeight: 700, color: '#4f46e5' }}>
+                Explore AI Avatar →
+              </Link>
+            </div>
           </div>
 
-          <div className="vs-card" style={{ padding: 24, marginBottom: 28 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-              {['Text To Video', 'Image To Video', '30-Second Clips', 'AI Video Ads', 'Redraw Editing'].map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setSeedanceMode(mode)}
-                  className={seedanceMode === mode ? 'vs-tag vs-tag-brand' : 'vs-tag'}
-                  style={{ padding: '6px 13px', cursor: 'pointer' }}
-                >
-                  {mode}
-                </button>
+          {/* Card 2 */}
+          <div className="vs-light-bento-card">
+            <div className="vs-light-bento-media" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16 }}>
+              {STOCK_AVATARS.slice(0, 4).map((av, i) => (
+                <img
+                  key={av.id}
+                  src={av.image}
+                  alt={av.name}
+                  style={{
+                    width: i === 1 ? 150 : 82,
+                    height: i === 1 ? 176 : 136,
+                    borderRadius: 14,
+                    objectFit: 'cover',
+                    border: '2px solid #ffffff',
+                    boxShadow: '0 10px 24px rgba(15,23,42,0.16)',
+                  }}
+                />
               ))}
             </div>
-
-            <div className="vs-grid-2" style={{ alignItems: 'center' }}>
-              <div>
-                <textarea
-                  className="vs-textarea"
-                  value={seedancePrompt}
-                  onChange={(e) => setSeedancePrompt(e.target.value)}
-                  style={{ marginBottom: 14 }}
-                />
-                <Link
-                  href={`/studio?tab=seedance&prompt=${encodeURIComponent(seedancePrompt)}`}
-                  className="vs-btn vs-btn-primary"
-                >
-                  <span>Try Seedance 2.5</span>
-                  <ArrowRight size={16} />
-                </Link>
-              </div>
-              <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border-hairline)' }}>
-                <img
-                  src="/assets/showcase/seedance-cinema.jpg"
-                  alt="Seedance 2.5 Cinema Output"
-                  style={{ width: '100%', height: 220, objectFit: 'cover', display: 'block' }}
-                />
-              </div>
+            <div style={{ padding: '4px 6px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+                Consistent AI Characters for Long Videos
+              </h3>
+              <p style={{ fontSize: '0.84rem', color: '#475569', lineHeight: 1.55, marginBottom: 12 }}>
+                Create AI avatar videos up to 10 minutes long while keeping your character&apos;s appearance and identity consistent in every scene.
+              </p>
+              <Link href="/studio?tab=ai-video" style={{ fontSize: '0.84rem', fontWeight: 700, color: '#4f46e5' }}>
+                Explore AI Video →
+              </Link>
             </div>
           </div>
 
-          <div className="vs-grid-3">
-            {AI_MODELS.filter((m) => ['kling-o3', 'minimax-h3', 'wan-3.0'].includes(m.id)).map((model) => (
-              <div key={model.id} className="vs-card vs-card-interactive" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{model.name}</span>
-                  <span className="vs-tag">{model.badge}</span>
-                </div>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', flex: 1 }}>
-                  {locale === 'vi' ? model.summaryVi : model.summaryEn}
-                </p>
-                <Link
-                  href={`/studio?tab=seedance&model=${model.apiId}`}
-                  style={{ color: 'var(--accent-brand)', fontWeight: 650, fontSize: '0.88rem' }}
-                >
-                  Explore {model.name} →
-                </Link>
+          {/* Card 3 */}
+          <div className="vs-light-bento-card">
+            <div className="vs-light-bento-media" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, maxWidth: 220 }}>
+                {['🇺🇸 ENGLISH', '🇩🇪 DEUTSCH', '🇫🇷 FRANÇAIS', '🇪🇸 ESPAÑOL', '🇻🇳 TIẾNG VIỆT', '🇯🇵 日本語', '🇰🇷 한국어'].map((lang, idx) => (
+                  <span
+                    key={lang}
+                    style={{
+                      padding: idx === 0 ? '7px 14px' : '5px 10px',
+                      borderRadius: 999,
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      fontSize: idx === 0 ? '0.82rem' : '0.7rem',
+                      fontWeight: 800,
+                      boxShadow: '0 6px 16px rgba(15,23,42,0.1)',
+                    }}
+                  >
+                    {lang}
+                  </span>
+                ))}
               </div>
-            ))}
+              <img
+                src="/assets/avatars/marcus.jpg"
+                alt="Multilingual AI Voices"
+                style={{ width: 155, height: 185, borderRadius: 16, objectFit: 'cover' }}
+              />
+            </div>
+            <div style={{ padding: '4px 6px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+                Multilingual AI Voices for Global Audiences
+              </h3>
+              <p style={{ fontSize: '0.84rem', color: '#475569', lineHeight: 1.55, marginBottom: 12 }}>
+                Choose from 1,000+ natural AI voices across 88 languages, countries, and regional accents — or clone your own voice.
+              </p>
+              <Link href="/studio?tab=ai-tools&tool=tts" style={{ fontSize: '0.84rem', fontWeight: 700, color: '#4f46e5' }}>
+                Explore AI Voices →
+              </Link>
+            </div>
+          </div>
+
+          {/* Card 4 */}
+          <div className="vs-light-bento-card">
+            <div className="vs-light-bento-media" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: 16 }}>
+              <img
+                src="/assets/avatars/kenji.jpg"
+                alt="High-Resolution 2K"
+                style={{ width: 175, height: 185, borderRadius: 16, objectFit: 'cover' }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {['720p Standard', '1080p Full HD', '2K Ultra Sharp'].map((res, i) => (
+                  <div
+                    key={res}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 10,
+                      background: i === 2 ? '#4f46e5' : '#ffffff',
+                      color: i === 2 ? '#ffffff' : '#0f172a',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      boxShadow: '0 6px 14px rgba(15,23,42,0.08)',
+                    }}
+                  >
+                    {res}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding: '4px 6px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+                High-Resolution up to 2K
+              </h3>
+              <p style={{ fontSize: '0.84rem', color: '#475569', lineHeight: 1.55, marginBottom: 12 }}>
+                Export professional AI avatar videos in 720p, 1080p, or crisp 2K resolution for marketing, training, and social media.
+              </p>
+              <Link href="/studio?tab=ai-video" style={{ fontSize: '0.84rem', fontWeight: 700, color: '#4f46e5' }}>
+                Explore HD Video →
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>Realism that scales</div>
+            <div style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
+              One consistent character — every language, length, and resolution.
+            </div>
+          </div>
+          <Link href="/studio?tab=ai-video" className="vs-btn vs-btn-primary" style={{ paddingRight: 10 }}>
+            <span>Create Your AI Video</span>
+            <span
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                background: '#ffffff',
+                color: '#0f172a',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: 6,
+              }}
+            >
+              <ArrowUpRight size={15} />
+            </span>
+          </Link>
+        </div>
+      </section>
+
+      {/* =========================================================
+          3. AI VIDEO AGENT (Exact 1:1 Slate Shell + Interactive Composer Overlay)
+          ========================================================= */}
+      <section className="vs-section-shell vs-section-shell-slate">
+        <div style={{ maxWidth: 680, marginBottom: 36 }}>
+          <span className="vs-eyebrow">FROM BRIEF TO PUBLISHED VIDEO</span>
+          <h2 className="vs-h2" style={{ marginBottom: 14 }}>
+            AI Video Agent: From a Prompt
+            <br />
+            to a Ready-to-Publish Video
+          </h2>
+          <p className="vs-lead" style={{ fontSize: '0.96rem' }}>
+            Pick an AI avatar and describe your video in a sentence — or hand the agent a URL, PDF, or deck. It plans a multi-shot talking video for you: script, a scene for every shot, voiceover, and captions. Then refine any shot just by chatting, and generate in 16:9, 9:16, or 1:1.
+          </p>
+        </div>
+
+        {/* Visual Stage + Interactive Floating Agent Bar */}
+        <div
+          style={{
+            position: 'relative',
+            borderRadius: 24,
+            overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.12)',
+            minHeight: 430,
+            background: 'radial-gradient(circle at 50% 30%, #2e2a72 0%, #0d0f1a 70%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            padding: 28,
+            marginBottom: 22,
+          }}
+        >
+          <img
+            src="/assets/avatars/elena.jpg"
+            alt="AI Video Agent Director"
+            style={{
+              position: 'absolute',
+              top: 0,
+              width: 390,
+              height: 390,
+              objectFit: 'cover',
+              borderRadius: '0 0 28px 28px',
+              opacity: 0.92,
+            }}
+          />
+
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 2,
+              width: '100%',
+              maxWidth: 620,
+              background: 'rgba(18, 19, 27, 0.92)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255,255,255,0.14)',
+              borderRadius: 18,
+              padding: 16,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <span className="vs-ctrl-pill" style={{ height: 32 }}>
+                <img src="/assets/avatars/aria.jpg" alt="Avatar" style={{ width: 20, height: 20, borderRadius: 5, objectFit: 'cover' }} />
+                <span>Avatar</span>
+              </span>
+              <span className="vs-ctrl-pill" style={{ height: 32 }}>
+                <Volume2 size={14} style={{ color: '#38bdf8' }} />
+                <span>Auto Voice</span>
+              </span>
+            </div>
+            <input
+              type="text"
+              value={agentPrompt}
+              onChange={(e) => setAgentPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleHeroAgentSubmit()}
+              placeholder="Describe your scene, message, or story..."
+              style={{
+                width: '100%',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: '#fff',
+                fontSize: '0.92rem',
+                padding: '6px 0 14px',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span className="vs-ctrl-pill" style={{ width: 32, height: 32, padding: 0, justifyContent: 'center' }}>
+                  <Plus size={15} />
+                </span>
+                <span className="vs-ctrl-pill" style={{ height: 32 }}>16:9 · 9:16</span>
+              </div>
+              <button type="button" className="vs-circle-submit" onClick={handleHeroAgentSubmit} title="Launch AI Agent">
+                <ArrowUp size={17} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Light Summary Card below matching marketing_home_tall.png */}
+        <div className="vs-light-bento-card" style={{ padding: '28px 32px' }}>
+          <div>
+            <div style={{ fontSize: '0.73rem', fontWeight: 800, letterSpacing: '0.08em', color: '#4f46e5', marginBottom: 8 }}>
+              AGENT VS. POINT TOOLS
+            </div>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+              One AI video generator for the full production cycle
+            </h3>
+            <p style={{ fontSize: '0.92rem', color: '#475569', maxWidth: 760 }}>
+              Most AI tools only handle one step: scriptwriting, avatars, image generation, voiceover, captions, or editing. VisionStory AI Agent connects the entire workflow, so business teams ship finished videos faster.
+            </p>
           </div>
         </div>
       </section>
 
-      {/* 8. DEVELOPER CLI, AGENT SKILL & MCP */}
-      <section className="vs-section">
-        <div className="vs-container">
-          <div className="vs-grid-2" style={{ alignItems: 'start' }}>
+      {/* =========================================================
+          4. AI MUSIC VIDEO, PODCAST & FACE SWAP SHOWCASE
+          ========================================================= */}
+      <section className="vs-container" style={{ margin: '56px auto' }}>
+        <div className="vs-grid-3">
+          {/* Music Video */}
+          <div className="vs-card vs-card-interactive" style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18 }}>
             <div>
-              <span className="vs-eyebrow">{t.sections.devEyebrow}</span>
-              <h2 className="vs-h2" style={{ marginBottom: 14 }}>{t.sections.devTitle}</h2>
-              <p className="vs-lead" style={{ marginBottom: 24 }}>{t.sections.devDesc}</p>
+              <span className="vs-eyebrow">FROM PHOTO TO MUSIC VIDEO</span>
+              <h3 style={{ fontSize: '1.45rem', fontWeight: 800, marginBottom: 10 }}>AI Music Video Generator</h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+                Turn one song and one photo into a cinematic AI music video with natural singing lip sync — Solo or Duet. Works with MP3, WAV, Suno, or Udio.
+              </p>
+              <img
+                src="/assets/showcase/music-singer.jpg"
+                alt="AI Music Video"
+                style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 14 }}
+              />
+            </div>
+            <Link href="/studio?tab=viral-music" className="vs-btn vs-btn-primary" style={{ width: '100%' }}>
+              <VsIconViralMusic />
+              <span>Create Viral Music Video</span>
+            </Link>
+          </div>
 
-              <div className="vs-card" style={{ padding: 20, marginBottom: 20 }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: 8 }}>
-                  VisionStory CLI · Install once. Use every API from your terminal.
+          {/* Podcast Video */}
+          <div className="vs-card vs-card-interactive" style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18 }}>
+            <div>
+              <span className="vs-eyebrow">TURN AUDIO INTO PODCAST VIDEO</span>
+              <h3 style={{ fontSize: '1.45rem', fontWeight: 800, marginBottom: 10 }}>AI Podcast Video Generator</h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+                Upload NotebookLM audio, MP3s, or a topic prompt — VisionStory puts two lifelike AI hosts in a broadcast podcast studio automatically.
+              </p>
+              <img
+                src="/assets/showcase/podcast-mindful.jpg"
+                alt="AI Video Podcast"
+                style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 14 }}
+              />
+            </div>
+            <Link href="/studio?tab=podcast" className="vs-btn vs-btn-primary" style={{ width: '100%' }}>
+              <VsIconPodcast />
+              <span>Open Podcast Studio</span>
+            </Link>
+          </div>
+
+          {/* Face Swap */}
+          <div className="vs-card vs-card-interactive" style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18 }}>
+            <div>
+              <span className="vs-eyebrow">SWAP FACES IN SECONDS</span>
+              <h3 style={{ fontSize: '1.45rem', fontWeight: 800, marginBottom: 10 }}>AI Video Face Swap</h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+                Upload a reference face and target clip to generate a realistic HD face swap that tracks expression, head motion, and studio lighting.
+              </p>
+              <img
+                src="/assets/avatars/nina.jpg"
+                alt="AI Video Face Swap"
+                style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 14 }}
+              />
+            </div>
+            <Link href="/studio?tab=face-swap" className="vs-btn vs-btn-primary" style={{ width: '100%' }}>
+              <VsIconFaceSwap />
+              <span>Try Free Face Swap</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================
+          5. SEEDANCE 2.5 & VIDEO MODELS HUB
+          ========================================================= */}
+      <section className="vs-section-shell vs-section-shell-slate">
+        <div style={{ textAlign: 'center', maxWidth: 740, margin: '0 auto 30px' }}>
+          <span className="vs-eyebrow">VIDEO MODELS</span>
+          <h2 className="vs-h2" style={{ marginBottom: 12 }}>
+            Try Seedance 2.5 and More AI Video Models
+          </h2>
+          <p className="vs-lead" style={{ fontSize: '0.95rem' }}>
+            Create high-quality Seedance 2.5 AI videos online with VisionStory. Turn text prompts, images, audio, video, and up to 50 references into controlled clips for ads and storytelling.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 28 }}>
+          {AI_MODELS.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setSelectedModelId(m.id)}
+              className={`vs-btn vs-btn-sm ${selectedModelId === m.id ? 'vs-btn-primary' : 'vs-btn-secondary'}`}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="vs-card" style={{ padding: 28, display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 28, alignItems: 'center' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <span className="vs-tag vs-tag-brand">{selectedModel.provider}</span>
+              <span className="vs-tag">{selectedModel.resolution}</span>
+              <span className="vs-tag">{selectedModel.maxDuration}</span>
+            </div>
+            <h3 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: 10 }}>{selectedModel.name}</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: 18 }}>
+              {locale === 'vi' ? selectedModel.summaryVi : selectedModel.summaryEn}
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}>
+              {selectedModel.capabilities.map((cap) => (
+                <span key={cap} className="vs-tag" style={{ color: '#fff' }}>
+                  <Check size={12} style={{ color: 'var(--accent-brand)' }} /> {cap}
+                </span>
+              ))}
+            </div>
+            <Link href={`/studio?tab=seedance&model=${selectedModel.id}`} className="vs-btn vs-btn-primary">
+              <span>Generate with {selectedModel.name}</span>
+              <ArrowRight size={15} />
+            </Link>
+          </div>
+          <img
+            src={selectedModel.showcaseImage}
+            alt={selectedModel.name}
+            style={{ width: '100%', height: 290, objectFit: 'cover', borderRadius: 16 }}
+          />
+        </div>
+      </section>
+
+      {/* =========================================================
+          6. AGENT READY: CLI & MCP DEVELOPER WORKFLOW
+          ========================================================= */}
+      <section className="vs-container" style={{ margin: '64px auto' }}>
+        <div className="vs-card" style={{ padding: '44px 40px', background: '#0b0c12' }}>
+          <div className="vs-grid-2" style={{ alignItems: 'center', gap: 36 }}>
+            <div>
+              <span className="vs-eyebrow">AGENT READY</span>
+              <h2 className="vs-h2" style={{ marginBottom: 14 }}>
+                Works where your agents work.
+              </h2>
+              <p className="vs-lead" style={{ fontSize: '0.95rem', marginBottom: 22 }}>
+                Copy one setup message for your coding agent, or connect the MCP server and VisionStory CLI to expose talking-video generation as a reusable tool.
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <Link href="/openapi" className="vs-btn vs-btn-primary">
+                  <Terminal size={16} />
+                  <span>Explore OpenAPI & MCP</span>
+                </Link>
+                <Link href="/studio?tab=api" className="vs-btn vs-btn-secondary">
+                  <span>Create API Key</span>
+                </Link>
+              </div>
+            </div>
+
+            <div style={{ background: '#050609', border: '1px solid var(--border-hairline)', borderRadius: 16, padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#a59eff', letterSpacing: '0.06em' }}>
+                  VISIONSTORY CLI · ISOLATED INSTALLER
+                </span>
+                <button
+                  type="button"
+                  className="vs-tag"
+                  onClick={() => copyText('curl -LsSf https://www.visionstory.ai/cli/install.sh | sh', 'CLI command')}
+                >
+                  <Copy size={12} /> Copy
+                </button>
+              </div>
+              <pre
+                style={{
+                  fontFamily: 'var(--font-mono), monospace',
+                  fontSize: '0.82rem',
+                  color: '#e2e8f0',
+                  overflowX: 'auto',
+                  lineHeight: 1.65,
+                }}
+              >
+{`$ curl -LsSf https://www.visionstory.ai/cli/install.sh | sh
+$ export VISIONSTORY_API_KEY="vs_live_..."
+$ visionstory video create \\
+    --avatar av_aria_v4 \\
+    --voice voice_alloy \\
+    --resolution 1080p \\
+    --script "Ship talking videos straight from CI!"`}
+              </pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================
+          7. VISIONSTORY AI TOOLS FOR EVERY CREATOR
+          ========================================================= */}
+      <section className="vs-container" style={{ margin: '64px auto' }}>
+        <div style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 34px' }}>
+          <span className="vs-eyebrow">VISIONSTORY TOOLS</span>
+          <h2 className="vs-h2" style={{ marginBottom: 10 }}>AI Tools for Every Creator</h2>
+          <p className="vs-lead" style={{ fontSize: '0.94rem' }}>
+            Find the right VisionStory tool for videos, avatars, voices, images, presentations, and creative workflows.
+          </p>
+        </div>
+
+        <div className="vs-grid-3">
+          {CREATOR_TOOLS.slice(0, 9).map((tool) => (
+            <Link
+              key={tool.slug}
+              href={`/studio?tab=${tool.studioTab}${tool.studioSubTool ? `&tool=${tool.studioSubTool}` : ''}`}
+              className="vs-card vs-card-interactive"
+              style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 15 }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 11,
+                  background: '#191b26',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {tool.category === 'avatar' ? <VsIconAiVideo /> : <VsIconTools />}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.94rem' }}>
+                    {locale === 'vi' ? tool.titleVi : tool.titleEn}
+                  </span>
+                  {tool.badge && <span className="vs-tag-duet">{tool.badge}</span>}
                 </div>
-                <div
-                  className="mono"
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                  {locale === 'vi' ? tool.descVi : tool.descEn}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* =========================================================
+          8. USERS LOVE VISIONSTORY (Verified G2 Reviews)
+          ========================================================= */}
+      <section className="vs-container" style={{ margin: '72px auto' }}>
+        <div style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 36px' }}>
+          <span className="vs-eyebrow">9 G2 AWARDS · FALL 2026</span>
+          <h2 className="vs-h2" style={{ marginBottom: 10 }}>Users Love VisionStory</h2>
+          <p className="vs-lead" style={{ fontSize: '0.94rem' }}>
+            Real reviews from verified G2 users — creators, marketers, and teams who ship videos with VisionStory.
+          </p>
+        </div>
+
+        <div className="vs-grid-3">
+          {G2_REVIEWS.map((rev) => (
+            <div key={rev.name} className="vs-card" style={{ padding: 22, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ color: '#ff6b3d', fontSize: '0.9rem', letterSpacing: 2, marginBottom: 8 }}>★★★★★</div>
+                <h4 style={{ fontSize: '0.96rem', fontWeight: 700, marginBottom: 8 }}>{rev.title}</h4>
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>{rev.body}</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 12, borderTop: '1px solid var(--border-hairline)' }}>
+                <span
                   style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: '50%',
+                    background: 'var(--accent-brand-soft)',
+                    color: '#b7b2ff',
+                    fontWeight: 700,
+                    fontSize: '0.78rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {rev.initials}
+                </span>
+                <div>
+                  <div style={{ fontSize: '0.83rem', fontWeight: 700 }}>{rev.name}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{rev.org}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* =========================================================
+          9. FAQ & FINAL CTA BANNER
+          ========================================================= */}
+      <section className="vs-container" style={{ maxWidth: 860, margin: '72px auto' }}>
+        <h2 className="vs-h2" style={{ textAlign: 'center', marginBottom: 28 }}>
+          Frequently asked questions
+        </h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {HOME_FAQS.map((item, idx) => {
+            const open = openFaq === idx;
+            return (
+              <div key={item.q} className="vs-card" style={{ overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(open ? null : idx)}
+                  style={{
+                    width: '100%',
+                    padding: '18px 22px',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: 10,
-                    background: 'hsl(222, 24%, 5%)',
-                    padding: '12px 14px',
-                    borderRadius: 10,
-                    border: '1px solid var(--border-hairline)',
-                    fontSize: '0.83rem',
-                    color: 'hsl(168, 80%, 68%)',
+                    fontWeight: 650,
+                    fontSize: '0.96rem',
+                    textAlign: 'left',
                   }}
                 >
-                  <span>$ curl -fsSL https://developers.visionstory.ai/cli | bash</span>
-                  <button
-                    type="button"
-                    className="vs-btn vs-btn-secondary vs-btn-sm"
-                    onClick={() =>
-                      copyText('curl -fsSL https://developers.visionstory.ai/cli | bash', 'CLI install command')
-                    }
-                  >
-                    <Copy size={13} /> Copy
-                  </button>
-                </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 8 }}>
-                  macOS · Linux · WSL · REST API · Python SDK · MCP Server
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 12 }}>
-                <Link href="/openapi" className="vs-btn vs-btn-primary">
-                  <span>Explore Developer Docs & Playground</span>
-                  <ArrowRight size={16} />
-                </Link>
-                <Link href="/openapi#api-keys" className="vs-btn vs-btn-secondary">
-                  Get API Key
-                </Link>
-              </div>
-            </div>
-
-            <div className="vs-card" style={{ padding: 22 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginBottom: 14 }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {Object.keys(AGENT_SETUP_PROMPTS).map((agent) => (
-                    <button
-                      key={agent}
-                      type="button"
-                      onClick={() => setCodingAgent(agent)}
-                      className={codingAgent === agent ? 'vs-tag vs-tag-brand' : 'vs-tag'}
-                      style={{ cursor: 'pointer', padding: '5px 10px' }}
-                    >
-                      {agent}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="vs-segmented">
-                  <button
-                    type="button"
-                    className={`vs-segmented-btn ${agentProtocol === 'skill' ? 'active' : ''}`}
-                    onClick={() => setAgentProtocol('skill')}
-                  >
-                    Agent Skill
-                  </button>
-                  <button
-                    type="button"
-                    className={`vs-segmented-btn ${agentProtocol === 'mcp' ? 'active' : ''}`}
-                    onClick={() => setAgentProtocol('mcp')}
-                  >
-                    MCP
-                  </button>
-                </div>
-              </div>
-
-              <pre
-                className="mono"
-                style={{
-                  background: 'hsl(222, 24%, 5%)',
-                  padding: 16,
-                  borderRadius: 12,
-                  border: '1px solid var(--border-hairline)',
-                  fontSize: '0.8rem',
-                  color: 'var(--text-secondary)',
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: 1.6,
-                  marginBottom: 14,
-                }}
-              >
-                {agentProtocol === 'mcp'
-                  ? `{\n  "mcpServers": {\n    "visionstory": {\n      "command": "npx",\n      "args": ["-y", "@visionstory/mcp-server"],\n      "env": { "VISIONSTORY_API_KEY": "vs_live_..." }\n    }\n  }\n}`
-                  : AGENT_SETUP_PROMPTS[codingAgent]}
-              </pre>
-
-              <button
-                type="button"
-                className="vs-btn vs-btn-secondary vs-btn-sm"
-                onClick={() =>
-                  copyText(
-                    agentProtocol === 'mcp'
-                      ? '{"mcpServers":{"visionstory":{"command":"npx","args":["-y","@visionstory/mcp-server"]}}}'
-                      : AGENT_SETUP_PROMPTS[codingAgent],
-                    `${codingAgent} setup prompt`
-                  )
-                }
-              >
-                <Copy size={14} /> Copy setup prompt for {codingAgent}
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 9. VISIONSTORY CREATOR TOOLS SHOWCASE */}
-      <section className="vs-section">
-        <div className="vs-container">
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, marginBottom: 34 }}>
-            <div>
-              <span className="vs-eyebrow">{t.sections.toolsEyebrow}</span>
-              <h2 className="vs-h2">{t.sections.toolsTitle}</h2>
-            </div>
-            <Link href="/tools" className="vs-btn vs-btn-secondary">
-              See All 14+ Tools →
-            </Link>
-          </div>
-
-          <div className="vs-grid-4">
-            {[
-              {
-                img: '/assets/avatars/linh.jpg',
-                title: 'AI Image (Nano Banana 2)',
-                desc: 'Create 2K portraits, virtual influencers, and campaign shots from prompts.',
-                href: '/studio?tab=ai-tools&tool=image-gen',
-              },
-              {
-                img: '/assets/avatars/golden-podcaster.jpg',
-                title: 'Pet Video (Cat & Dog)',
-                desc: 'Put your dog or cat in a talking podcast or singing skit video.',
-                href: '/studio?tab=ai-video&avatar=av_golden_pet',
-              },
-              {
-                img: '/assets/avatars/marcus.jpg',
-                title: 'AI Green Screen',
-                desc: 'Export your talking presenter on clean chroma-key green screen.',
-                href: '/studio?tab=ai-video&greenscreen=1',
-              },
-              {
-                img: '/assets/avatars/aria.jpg',
-                title: 'Remove Background',
-                desc: 'Cut out portraits and product images to transparent PNG in one click.',
-                href: '/studio?tab=ai-tools&tool=bg-remove',
-              },
-            ].map((item) => (
-              <Link
-                key={item.title}
-                href={item.href}
-                className="vs-card vs-card-interactive"
-                style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-              >
-                <img
-                  src={item.img}
-                  alt={item.title}
-                  style={{ width: '100%', height: 190, objectFit: 'cover', objectPosition: 'center 20%' }}
-                />
-                <div style={{ padding: 18 }}>
-                  <h3 style={{ fontSize: '1.02rem', fontWeight: 700, marginBottom: 6 }}>{item.title}</h3>
-                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>{item.desc}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 10. VERIFIED G2 REVIEWS */}
-      <section className="vs-section">
-        <div className="vs-container">
-          <div style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 38px' }}>
-            <span className="vs-eyebrow">9 G2 Awards · Fall 2026</span>
-            <h2 className="vs-h2" style={{ marginBottom: 10 }}>{t.sections.reviewsTitle}</h2>
-            <p className="vs-lead">{t.sections.reviewsDesc}</p>
-          </div>
-
-          <div className="vs-grid-3">
-            {[
-              {
-                initials: 'AG',
-                author: 'AKI G.',
-                role: 'Small-Business · International Trade',
-                headline: 'VisionStory AI Delivers Strong ROI with Fast, High-Quality Video Creation',
-                quote:
-                  'It helps me create high-quality video content much faster and at a lower cost than traditional production. The AI understands prompts well, produces natural results, and makes it easy to test creative ideas quickly.',
-              },
-              {
-                initials: 'TL',
-                author: 'Tony L.',
-                role: 'Small-Business · Animation',
-                headline: 'High-Quality Talking Videos at a Competitive Price',
-                quote:
-                  'VisionStory is able to create high-quality talking videos at a very competitive cost. The video generation cost can be less than $1 per minute, while the final result is comparable to leading AI video models.',
-              },
-              {
-                initials: 'AM',
-                author: 'Aaron Misael G.',
-                role: 'Small-Business · Educational Media',
-                headline: 'Easy-to-Use Tool, Ideal for Educational Content',
-                quote:
-                  'You do not really need to know much about AI to get started. Simply type what the character is going to say and let VisionStory AI do everything — from lip-sync to captions.',
-              },
-            ].map((rev) => (
-              <div key={rev.author} className="vs-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ color: '#f59e0b', letterSpacing: 2, fontSize: '0.95rem' }}>★★★★★</div>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.35 }}>{rev.headline}</h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', flex: 1 }}>“{rev.quote}”</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10, borderTop: '1px solid var(--border-hairline)' }}>
-                  <div
+                  <span>{item.q}</span>
+                  <ChevronDown
+                    size={17}
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: '50%',
-                      background: 'var(--accent-brand-soft)',
-                      color: 'var(--accent-brand)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 700,
-                      fontSize: '0.82rem',
+                      transform: open ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.15s ease',
+                      opacity: 0.7,
                     }}
-                  >
-                    {rev.initials}
+                  />
+                </button>
+                {open && (
+                  <div style={{ padding: '0 22px 18px', fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    {item.a}
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 650, fontSize: '0.86rem' }}>{rev.author}</div>
-                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{rev.role}</div>
-                  </div>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </section>
 
-      {/* 11. FAQ ACCORDION */}
-      <section className="vs-section">
-        <div className="vs-container" style={{ maxWidth: 860 }}>
-          <h2 className="vs-h2" style={{ textAlign: 'center', marginBottom: 32 }}>
-            {t.sections.faqTitle}
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {HOME_FAQS.map((faq, idx) => {
-              const isOpen = openFaq === idx;
-              return (
-                <div key={faq.qEn} className="vs-card" style={{ padding: '16px 20px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: 12,
-                      textAlign: 'left',
-                      fontWeight: 650,
-                      fontSize: '0.98rem',
-                    }}
-                  >
-                    <span>{locale === 'vi' ? faq.qVi : faq.qEn}</span>
-                    <ChevronDown
-                      size={18}
-                      style={{
-                        transform: isOpen ? 'rotate(180deg)' : 'none',
-                        transition: 'transform 0.18s ease',
-                        flexShrink: 0,
-                      }}
-                    />
-                  </button>
-                  {isOpen && (
-                    <p style={{ marginTop: 12, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                      {locale === 'vi' ? faq.aVi : faq.aEn}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* 12. BOTTOM CTA */}
-      <section className="vs-section-compact" style={{ borderBottom: 'none' }}>
-        <div className="vs-container">
-          <div
-            className="vs-card"
-            style={{
-              padding: '52px 32px',
-              textAlign: 'center',
-              background: 'linear-gradient(135deg, hsla(16, 85%, 45%, 0.18), hsla(222, 20%, 10%, 0.96))',
-            }}
-          >
-            <h2 className="vs-h2" style={{ marginBottom: 12 }}>{t.sections.bottomCtaTitle}</h2>
-            <p className="vs-lead" style={{ margin: '0 auto 26px' }}>{t.sections.bottomCtaDesc}</p>
-            <Link href="/studio" className="vs-btn vs-btn-primary vs-btn-lg">
-              <span>Try It Free in Studio</span>
-              <ArrowRight size={18} />
-            </Link>
-          </div>
-        </div>
+      <section className="vs-section-shell vs-section-shell-indigo" style={{ textAlign: 'center', padding: '64px 28px' }}>
+        <h2 className="vs-h1" style={{ fontSize: 'clamp(2rem, 4vw, 3.2rem)', marginBottom: 14 }}>
+          One Platform for Every Video You Make
+        </h2>
+        <p className="vs-lead" style={{ maxWidth: 620, margin: '0 auto 26px' }}>
+          AI avatars, a video agent, music videos, podcasts, and face swap — start free with 160+ ready-made characters.
+        </p>
+        <Link href="/studio" className="vs-btn vs-btn-primary vs-btn-lg">
+          <span>TRY IT FREE</span>
+          <ArrowRight size={16} />
+        </Link>
       </section>
 
       <Footer />
