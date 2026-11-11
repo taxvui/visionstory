@@ -1,6 +1,8 @@
 # VisionStory AI — Full-Stack UI & Feature Clone
 
-Full-stack Next.js (App Router + TypeScript + Vanilla CSS) clone of **VisionStory.ai** (`visionstory.ai` + `app.visionstory.ai` + `developers.visionstory.ai`), featuring bilingual **English / Tiếng Việt** support, real browser-side **Canvas + WebM Video & Audio Synthesis**, persistent local storage (`data/visionstory-db.json`), and a live **REST OpenAPI (`/api/v1/*`)**.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/import?s=https%3A%2F%2Fgithub.com%2Ftaxvui%2Fvisionstory&project-name=visionstory)
+
+Full-stack Next.js (App Router + TypeScript + Vanilla CSS) clone of **VisionStory.ai** (`visionstory.ai` + `app.visionstory.ai` + `developers.visionstory.ai`), featuring bilingual **English / Tiếng Việt** support, real browser-side **Canvas + WebM Video & Audio Synthesis**, persistent local/serverless storage, and a live **REST OpenAPI (`/api/v1/*`)**.
 
 ## Key Features
 
